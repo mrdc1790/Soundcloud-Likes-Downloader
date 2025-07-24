@@ -71,16 +71,15 @@ pip install -r requirements.txt
 
 ## Configuration
 
-Modify `config.json` to change settings:
+Modify `ydl_opts` json object to change settings:
 
 ```json
  {
-   "output_dir": "./downloads",
-   "max_duration": 900,  # Max song length in seconds (15 minutes)
-   "format": "bestaudio[ext=m4a][abr>=256]/bestaudio",
-   "convert_to_mp3": true,
-   "preferred_bitrate": "256",
-   "cookies_file": "cookies.txt"
+   "format": "bestaudio[abr>=256]/bestaudio/best",  # Ensure 256kbps+ MP3
+   "cookiefile": cookies_path,
+   "download_archive": os.path.join(output_dir, "downloaded_songs.txt"),
+   "output_write_info_json": False,  # Prevents extra metadata files
+   "addmetadata": True
  }
 ```
 
