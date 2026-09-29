@@ -1,2 +1,1 @@
-yt-dlp
-ffmpeg
+yt-dlp>=2026.3.17

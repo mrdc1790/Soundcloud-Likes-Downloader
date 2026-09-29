@@ -1,0 +1,10 @@
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+downloads/
+*cookies*.txt
+downloaded_songs.txt
+download_log*.txt
+.env
+.idea/

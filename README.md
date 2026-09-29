@@ -1,120 +1,84 @@
 # SoundCloud Likes Downloader
 
-A Python script that downloads your liked tracks from SoundCloud, ensuring that already-downloaded songs are skipped. It prioritizes high-quality audio and maintains a structured output directory.
+Build an offline audio library from SoundCloud likes, playlists, or individual tracks. Also accepts YouTube URLs. Based on the everyday workflow in the personal edition, with portable settings and no hard-coded account or browser profile.
 
----
+## Quick start
 
-## Features
-- **Supports SoundCloud authentication** using browser cookies
-- **Skips already downloaded tracks** to avoid duplicates
-- **Filters out long tracks** (default: skips songs longer than 15 minutes)
-- **Downloads at the highest available bitrate** (prioritizing M4A at 256kbps+)
-- **Converts to MP3** (256kbps) if needed
-- **Embeds metadata and album art**
-- **Logs successful and failed downloads**
+Requires Python 3.10+ and the **FFmpeg and ffprobe executables** on your PATH. Install FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html); the Python package named `ffmpeg` does not install these executables.
 
----
-
-## Installation
-
-### 1. Clone the repository
-
-```bash
- git clone https://github.com/YOUR_USERNAME/soundcloud-downloader.git
- cd soundcloud-downloader
+```powershell
+git clone https://github.com/mrdc1790/Soundcloud-Likes-Downloader.git
+cd Soundcloud-Likes-Downloader
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+ffmpeg -version
+ffprobe -version
+python soundcloud_downloader.py https://soundcloud.com/YOUR_USERNAME/likes 10
 ```
 
-### 2. Install dependencies
+On macOS/Linux activate with `source .venv/bin/activate`. If PowerShell blocks activation, use `.\.venv\Scripts\python.exe` instead of `python`.
 
-```bash
- pip install -r requirements.txt
+## Everyday commands
+
+```powershell
+# Read cookies directly from a browser where you are signed in
+python soundcloud_downloader.py https://soundcloud.com/YOUR_USERNAME/likes 10 --browser firefox
+
+# Choose a library folder and an existing Netscape-format cookie file
+python soundcloud_downloader.py https://soundcloud.com/YOUR_USERNAME/likes 10 -o "D:\Music" --cookies "D:\Private\cookies.txt"
+
+# Set a shortcut for this terminal session
+$env:SOUNDCLOUD_LIKES_URL = "https://soundcloud.com/YOUR_USERNAME/likes"
+python soundcloud_downloader.py 10 --browser firefox
+
+# Individual track; bypass history while keeping existing files protected
+python soundcloud_downloader.py https://soundcloud.com/ARTIST/TRACK --nocache
+
+# Keep original audio for an entire playlist
+python soundcloud_downloader.py https://soundcloud.com/ARTIST/sets/PLAYLIST --all --original
+
+# Inspect without downloading audio or updating history
+python soundcloud_downloader.py https://soundcloud.com/YOUR_USERNAME/likes --dry-run
 ```
 
-### 3. Install FFmpeg (required for audio processing)
+Quote YouTube URLs containing `&`. On macOS/Linux set the shortcut with `export SOUNDCLOUD_LIKES_URL="https://soundcloud.com/YOUR_USERNAME/likes"`.
 
-**Windows:**
-- Download from [FFmpeg official site](https://ffmpeg.org/download.html)
-- Extract and add FFmpeg to your system `PATH`
+## Options and behavior
 
-**Linux/macOS:**
-```bash
- sudo apt install ffmpeg   # Debian/Ubuntu
- brew install ffmpeg       # macOS (Homebrew)
-```
+| Option | Behavior |
+| --- | --- |
+| `URL [count]` | Stop after the requested number of completed tracks; default 1 |
+| `count` | Use the URL in `SOUNDCLOUD_LIKES_URL` |
+| `--all` | Process the full collection; cannot be combined with a count |
+| `-o`, `--output-dir` | Library folder; default `downloads` relative to your terminal |
+| `--browser`, `--profile` | Read browser cookies, optionally from a specific profile |
+| `--cookies` | Read a Netscape cookie file; cannot be combined with `--browser` |
+| `--original` | Skip MP3 conversion; still embed metadata and artwork where supported |
+| `--max-duration SECONDS` | Skip longer tracks; default 1200 (20 minutes) |
+| `--nocache` | Ignore old logs and disable archive reads/writes for this run |
+| `--dry-run` | Metadata preview; may contact the service and read authentication |
 
----
+Best available source audio is selected, then converted to MP3 V0 by default. V0 is variable bitrate, not a guaranteed 256 kbps. Conversion cannot improve source quality. Availability depends on the track and your account; no premium-quality promise is made. Original-audio mode avoids lossy conversion, but metadata/artwork support depends on the source container.
 
-## Usage
+Files are saved as `downloads/UPLOADER/TITLE [TRACK_ID].EXT`. IDs prevent different tracks with the same title from colliding. `downloaded_songs.txt` is yt-dlp's persistent ID archive, written after processing succeeds. Existing `download_log.txt` entries from the older edition are also checked; new runs use the ID archive instead of appending title-based logs. Keep your existing log and archive in the selected output folder when migrating.
 
-### 1. Extract Browser Cookies
-Before downloading, extract cookies from your browser and download dependencies:
+Filtered, archived, and failed tracks do not count toward the requested completion limit. A collection can end before the requested count is reached. Errors are printed and appended to `download_log_ERROR.txt`; a run with download errors returns a nonzero exit status. Ctrl+C preserves already archived successes.
 
-```bash
- yt-dlp --cookies-from-browser chrome --cookies cookies.txt
-```
-
-*(Replace `chrome` with `opera`, `firefox`, etc. based on your browser)*
-
-```bash
-pip install -r requirements.txt
-```
-
-### 2. Run the script
-
-```bash
- python download_sc_likes.py https://soundcloud.com/YOUR_USERNAME/likes 10
-```
-
-*(Replace `YOUR_USERNAME` with your SoundCloud username and `10` with the number of new songs to download)*
-
----
-
-## Configuration
-
-Modify `ydl_opts` json object to change settings:
-
-```json
- {
-   "format": "bestaudio[abr>=256]/bestaudio/best",  # Ensure 256kbps+ MP3
-   "cookiefile": cookies_path,
-   "download_archive": os.path.join(output_dir, "downloaded_songs.txt"),
-   "output_write_info_json": False,  # Prevents extra metadata files
-   "addmetadata": True
- }
-```
-
----
+`--nocache` does not disable duration filtering or force existing files to be overwritten. To create another format for already archived tracks, use a separate output folder or explicitly bypass history. A dry run previews the collection without applying the completed-download count, because no downloads complete.
 
 ## Troubleshooting
 
-### Cookies not working?
-- Ensure the cookies file is in **Netscape format**
-- If `cookies_from_browser` doesn't work in the script, manually extract cookies:
-  ```bash
-  yt-dlp --cookies-from-browser opera --cookies cookies.txt
-  ```
+- **Authentication fails:** log in again, select the correct `--profile`, or provide a fresh cookie file. Cookies are optional for publicly accessible tracks. Keep cookie files private.
+- **FFmpeg missing:** both `ffmpeg -version` and `ffprobe -version` should work in the same terminal used for Python.
+- **Extraction fails:** run `python -m pip install --upgrade yt-dlp`. See [yt-dlp's documentation](https://github.com/yt-dlp/yt-dlp#readme) for current browser and YouTube runtime requirements.
+- **Rate limited:** allow retries to finish, then wait before rerunning. The script uses bounded retries rather than retrying forever.
+- **Missing tracks:** private, removed, region-limited, or inaccessible tracks can fail; review the error log.
 
-### FFmpeg errors?
-- Ensure FFmpeg is installed and accessible via `ffmpeg -version`
-- If metadata embedding fails, add `--no-post-overwrites` to yt-dlp options
+## Development
 
-### Song not downloading in high quality?
-- SoundCloud may limit quality based on your region/account
-- Try logging in and manually downloading a song to check available formats
+```powershell
+python -m unittest discover -s tests -v
+```
 
----
-
-## License
-This project is licensed under the MIT License.
-
----
-
-## Contributing
-Feel free to submit pull requests or issues if you have improvements or encounter problems!
-
----
-
-## Acknowledgments
-- Built using `yt-dlp`
-- FFmpeg for audio conversion
-- Inspired by SoundCloud enthusiasts who want high-quality offline playback
+Tests use local fixtures and mocks; they do not authenticate or download media. Only download content you have permission to save. No project license file is currently included; the old README's MIT claim was unsupported.
