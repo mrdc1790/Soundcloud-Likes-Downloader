@@ -67,6 +67,18 @@ Filtered, archived, and failed tracks do not count toward the requested completi
 
 `--nocache` does not disable duration filtering or force existing files to be overwritten. To create another format for already archived tracks, use a separate output folder or explicitly bypass history. A dry run previews the collection without applying the completed-download count, because no downloads complete.
 
+## Use downloaded MP3s in Spotify
+
+This is a copy/paste-friendly setup guide for anyone receiving a folder of MP3s. Download the shared Drive folder and keep it in a permanent location on the computer, such as `C:\Music`; do not move, rename, or delete the folder after adding it to Spotify.
+
+1. In the Spotify **desktop** app, open **Settings → Library** and turn on **Show Local Files**.
+2. Add or select the folder containing the MP3s.
+3. Find the songs under **Your Library → Local Files**. Add them to Spotify playlists normally. They may already appear in a shared playlist if the sender added their local copies there.
+
+To use those local tracks on a phone, sign into the **same Spotify account** on both devices, leave Spotify open on the computer, and put the phone and computer on the same Wi-Fi network. On Windows, set the computer's network profile to **Private**: **Settings → Network & Internet → Wi-Fi/Ethernet → [network] → Network profile type → Private**. Then open the playlist on the phone and download it; Spotify can transfer the local tracks along with the regular Spotify tracks. Keep both Spotify apps open until the download finishes.
+
+Afterward, local tracks can sit alongside Spotify-catalog tracks in the same playlist. If a local track does not appear or download, confirm that the MP3 folder has not moved, the desktop app can still see it under Local Files, both devices use the same account and Wi-Fi, and the computer's firewall/network profile is not blocking the connection. Spotify's settings labels and local-file behavior can vary by app version and account plan.
+
 ## Troubleshooting
 
 - **Authentication fails:** log in again, select the correct `--profile`, or provide a fresh cookie file. Cookies are optional for publicly accessible tracks. Keep cookie files private.
