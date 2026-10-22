@@ -283,6 +283,16 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("browser profile is locked", stderr)
         self.assertNotIn("Traceback", stderr)
 
+    def test_ytdlp_deprecation_notice_does_not_fail_a_successful_run(self):
+        def download(ydl, urls):
+            ydl.params["logger"].error("Deprecated Feature: fixture runtime deprecation")
+            return ydl._download_retcode
+        with tempfile.TemporaryDirectory() as directory, patch.object(yt_dlp.YoutubeDL, "download", download):
+            status, _, stderr = self.run_cli([URL, "-o", directory])
+            self.assertEqual(status, 0, stderr)
+            self.assertIn("Deprecated Feature", stderr)
+            self.assertFalse(Path(directory, "download_log_ERROR.txt").exists())
+
     def test_entrypoint_help_works_without_dependencies_or_filesystem_writes(self):
         root = Path(__file__).resolve().parents[1]
         entry = root / "soundcloud_downloader.py"

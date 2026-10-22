@@ -259,6 +259,10 @@ def main(argv=None, *, defaults=None):
             print(f"Warning: {message}", file=sys.stderr)
 
         def error(self, message):
+            # yt-dlp sends non-fatal deprecations through logger.error too.
+            if re.match(r"(?:ERROR:\s*)?Deprecated Feature:", message):
+                self.warning(message)
+                return
             self.auth_hint |= auth_error_message(message)
             self.other_error |= not auth_error_message(message)
             print(message, file=sys.stderr)
@@ -325,7 +329,7 @@ def main(argv=None, *, defaults=None):
                         previous_errors = logger.other_error
                         verify_account(ydl)
                     print("Preview finished; no audio downloaded." if args.dry_run else f"Finished: {len(completed)} completed. Output: {output.resolve()}")
-                    return int(bool(status or logger.other_error or previous_errors))
+                    return int(bool(status or ydl._download_retcode or previous_errors))
             except AuthenticationRejected:
                 if attempt or not refresh_browser:
                     raise
