@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-import soundcloud_downloader as app
+import downloader_cli as app
 import yt_dlp
 from yt_dlp.utils import DownloadCancelled
 
