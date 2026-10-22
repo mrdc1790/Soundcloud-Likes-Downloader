@@ -51,6 +51,7 @@ likes/count shortcuts use SOUNDCLOUD_LIKES_URL (or the personal edition's defaul
     limit.add_argument("--limit", type=positive_int, help="new completed downloads (alternative to positional count)")
     limit.add_argument("--all", action="store_true", help="process the full collection")
     cli.add_argument("-o", "--output-dir", type=Path, default=Path(defaults.output), help="library folder (see README for edition default)")
+    cli.add_argument("-v", "--verbose", action="store_true", help="show yt-dlp extraction, skips, progress and source details (compact by default)")
     auth = cli.add_argument_group("authentication (optional for public tracks)")
     source = auth.add_mutually_exclusive_group()
     source.add_argument("--cookies", type=Path, help="existing Netscape cookie file; read through a temporary copy")
@@ -148,11 +149,16 @@ def legacy_id(info):
     return f"{title} - {uploader}".strip().lower().replace(" ", "_")
 
 
-def build_options(args, completed, cancelled):
+def read_title_history(output):
+    log = output / "download_log.txt"
+    return {line.strip().lower().replace(" ", "_") for line in log.read_text(encoding="utf-8").splitlines() if line.strip()} if log.exists() else set()
+
+
+def build_options(args, completed, cancelled, previous=None):
     from soundcloud_quality import soundcloud_options
     output = args.output_dir.expanduser()
-    log = output / "download_log.txt"
-    previous = set(log.read_text(encoding="utf-8").splitlines()) if log.exists() and not args.nocache and not args.inspect else set()
+    if previous is None:
+        previous = read_title_history(output) if not args.nocache and not args.inspect else set()
 
     def match(info, *, incomplete=False):
         if not args.dry_run and args.limit is not None and len(completed) >= args.limit:
@@ -162,7 +168,7 @@ def build_options(args, completed, cancelled):
         if (info.get("extractor_key"), info.get("id")) in completed:
             return "Already completed in this run"
         if not args.nocache and legacy_id(info) in previous:
-            return "Already in the legacy download log"
+            return "Already in download_log.txt"
         return None
 
     processors = [] if args.original else [
@@ -180,6 +186,9 @@ def build_options(args, completed, cancelled):
         "final_ext": None if args.original else "mp3",
         "simulate": args.dry_run or args.inspect,
         "lazy_playlist": True,
+        "quiet": not args.verbose,
+        "noprogress": not args.verbose,
+        "verbose": args.verbose,
         "cachedir": False,
         "socket_timeout": 20,
         "retries": 5,
@@ -193,6 +202,8 @@ def build_options(args, completed, cancelled):
     if args.inspect:
         options.update({"listformats": True, "simulate": "list_only", "noplaylist": True,
                         "playlistend": 1, "extract_flat": "in_playlist"})
+    if args.dry_run:
+        options["forceprint"] = {"video": ["Preview: %(title)s - %(uploader)s"]}
     if not args.nocache and not args.inspect and not args.dry_run:
         options["download_archive"] = str(output / "downloaded_songs.txt")
     elif args.dry_run and not args.nocache:
@@ -229,6 +240,7 @@ def main(argv=None, *, defaults=None):
             return 1
 
     completed = []
+    previous = set()
     output = args.output_dir.expanduser()
 
     class RecordCompletion(PostProcessor):
@@ -238,6 +250,13 @@ def main(argv=None, *, defaults=None):
                 return [], info
             key = (info.get("extractor_key"), info.get("id"))
             if key not in completed:
+                title = legacy_id(info)
+                if not args.nocache and title not in previous:
+                    # Keep the same two history files as the original script.
+                    # after_video runs after processing and the ID archive write.
+                    with (output / "download_log.txt").open("a", encoding="utf-8") as handle:
+                        handle.write(title + "\n")
+                    previous.add(title)
                 completed.append(key)
                 print(f"Completed {len(completed)}: {info.get('title', 'Untitled')}")
             # after_video runs AFTER postprocessing and the ID archive write.
@@ -252,7 +271,7 @@ def main(argv=None, *, defaults=None):
             self.other_error = False
 
         def debug(self, message):
-            if not message.startswith("[debug]"):
+            if args.verbose:
                 print(message)
 
         def warning(self, message):
@@ -271,7 +290,9 @@ def main(argv=None, *, defaults=None):
                     handle.write(message + "\n")
 
     try:
-        options = build_options(args, completed, DownloadCancelled)
+        if not args.nocache and not args.inspect:
+            previous.update(read_title_history(output))
+        options = build_options(args, completed, DownloadCancelled, previous)
         if not args.dry_run and not args.inspect:
             output.mkdir(parents=True, exist_ok=True)
         refresh_browser = args.refresh_browser or args.browser
@@ -289,7 +310,10 @@ def main(argv=None, *, defaults=None):
                 with authenticated_session(cookies, browser=browser, profile=profile, options=options,
                                            verify_soundcloud=is_soundcloud(args.target)) as (ydl, account):
                     if account:
-                        print(account_summary(account))
+                        if args.inspect or args.verbose:
+                            print(account_summary(account))
+                        else:
+                            print(f"Account: {account.get('username', '?')} (@{account.get('permalink', '?')})")
                     if args.inspect:
                         info = probe_quality(ydl, args.target) if args.check_quality else ydl.extract_info(args.target, download=False)
                         if not info or info.get("_type") in ("playlist", "multi_video"):
@@ -300,9 +324,13 @@ def main(argv=None, *, defaults=None):
                                 print("Guest access: account/subscription not checked; select --browser or --cookies to verify login.")
                             quality_summary(info)
                         return int(bool(ydl._download_retcode))
-                    if is_soundcloud(args.target):
-                        print("Source policy: creator original or full-length >=256 kbps." if args.require_hq else "Source policy: best available; may be below 256 kbps.")
-                    print("Output: original source audio." if args.original else "Output: MP3 V0; conversion cannot improve source quality.")
+                    if args.verbose:
+                        if is_soundcloud(args.target):
+                            print("Source policy: creator original or full-length >=256 kbps." if args.require_hq else "Source policy: best available; may be below 256 kbps.")
+                        print("Output: original source audio." if args.original else "Output: MP3 V0; conversion cannot improve source quality.")
+                    if not attempt and not args.dry_run:
+                        target_count = "all new tracks" if args.limit is None else f"up to {args.limit} new tracks"
+                        print(f"Downloading {target_count}; checking both history files." if not args.nocache else f"Downloading {target_count}; history disabled.")
                     base_match = ydl.params["match_filter"]
                     def skip_existing(info, *, incomplete=False, match=base_match, session_ydl=ydl):
                         reason = match(info, incomplete=incomplete)
@@ -314,7 +342,7 @@ def main(argv=None, *, defaults=None):
                         return None
                     ydl.params["match_filter"] = skip_existing
                     def report_source(event):
-                        if event.get("status") == "finished":
+                        if args.verbose and event.get("status") == "finished":
                             info = event.get("info_dict") or {}
                             print(f"Source chosen: {info.get('format_id', '?')}, {info.get('ext', '?')}, ~{info.get('abr') or info.get('tbr') or '?'} kbps; postprocessing pending.")
                     ydl.add_progress_hook(report_source)

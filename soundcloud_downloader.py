@@ -13,3 +13,6 @@ if __name__ == "__main__":
 # python soundcloud_downloader.py URL --no-cache --allow-standard-quality
 # --profile selects the account; --refresh-profile selects the fallback account.
 # A signed-out browser needs an interactive login; no password is stored here.
+
+# Normal runs are compact; add --verbose for extraction/progress/skip details.
+# Both download_log.txt (titles) and downloaded_songs.txt (IDs) are checked/updated.

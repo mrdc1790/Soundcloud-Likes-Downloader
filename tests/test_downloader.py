@@ -66,6 +66,10 @@ class DownloaderTests(unittest.TestCase):
                 self.assertEqual(output.getvalue().count('Completed 1:'), expected)
                 archive = Path(directory, 'downloaded_songs.txt')
                 self.assertEqual(archive.exists(), bool(expected))
+                title_log = Path(directory, 'download_log.txt')
+                self.assertEqual(title_log.exists(), bool(expected))
+                if expected:
+                    self.assertEqual(title_log.read_text(encoding='utf-8'), 'fixture_-_unknown_uploader\n')
 
     def test_help_does_not_create_library(self):
         with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(io.StringIO()):

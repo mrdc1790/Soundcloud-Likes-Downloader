@@ -23,6 +23,8 @@ On macOS/Linux activate with `source .venv/bin/activate`. If PowerShell blocks a
 
 ## Everyday commands
 
+Normal runs are compact: account (when signed in), a start message, one line per completed track, and the final summary. Already-downloaded tracks, extraction messages and progress chatter stay hidden. Warnings/errors remain visible. Add `--verbose` (or `-v`) for detailed diagnostics, skipped entries, progress and source reports.
+
 Replace example URLs/profile names with yours. `--help` lists every option and examples; the bottom of the entry script also has a short command reference.
 
 ```powershell
@@ -100,6 +102,7 @@ A missing HQ format, DRM restriction, unavailable track, timeout or HTTP 429 is 
 | `--allow-standard-quality` | SoundCloud best available source, allowing below 256 kbps |
 | `--nocache`, `--no-cache`, `--no-archive` | Ignore both history files and disable ID-archive reads/writes; keep count, duration and quality safeguards |
 | `--max-duration SECONDS` | Skip longer tracks; default 1200 (20 minutes) |
+| `-v`, `--verbose` | Show detailed yt-dlp logs, skipped tracks, progress and source information |
 | `-h`, `--help` | Descriptions and copyable examples; does not need yt-dlp or FFmpeg |
 
 Browsers: Firefox, Chrome, Chromium, Edge, Opera, Brave, Vivaldi, Safari and Whale, subject to OS/profile/decryption support. `--refresh-profile` requires `--refresh-browser`; `--profile` requires `--browser`. Do not combine `--browser` with `--refresh-browser`: direct browser mode already supports its own one-time re-read.
@@ -110,21 +113,22 @@ Browsers: Firefox, Chrome, Chromium, Edge, Opera, Brave, Vivaldi, Safari and Wha
 
 [SoundCloud HQ is normally 256 kbps AAC](https://help.soundcloud.com/hc/en-us/articles/360051838074-High-Quality-Streaming). MP3 output is **V0 (variable bitrate)**, not a guaranteed 256/320 kbps file. Conversion cannot restore quality absent from the source. `--keep-original` avoids lossy conversion, but artwork/metadata support depends on the container. A creator-enabled original may have no reported bitrate and is not proof of a particular source quality. Available formats and the source actually chosen are reported separately from final completion.
 
-## History, limits and migration
+## Download history: the same two caches
 
-Output: `OUTPUT/UPLOADER/TITLE [TRACK_ID].EXT`. IDs prevent same-title tracks from colliding. Existing files are protected from overwrites.
+Keep using the same two plain-text files in your output folder. No migration, rebuild or new cache format is needed.
 
-| File in the output folder | Purpose |
-| --- | --- |
-| `downloaded_songs.txt` | yt-dlp's durable download-ID archive; recorded after processing succeeds |
-| `download_log.txt` | Older normalized title/uploader history; read for migration, no new entries appended |
-| `download_log_ERROR.txt` | Download/extraction/postprocessing errors; includes failed attempts before a refresh |
+| File | What it stores | Example entry |
+| --- | --- | --- |
+| `download_log.txt` | Readable normalized title/uploader keys | `track_title_-_artist` |
+| `downloaded_songs.txt` | yt-dlp's provider/track IDs | `soundcloud 123456789` |
 
-Keep your library **and both history files** together when changing versions or output folders. Both files can prevent a repeat download; deleting only the text log does not clear the ID archive. Personal-edition filenames now include track IDs. Existing logged/archived tracks remain skipped; an older unlogged file with a different name cannot be reliably detected. `--no-cache` deliberately bypasses both histories and can create a second copy under the new name. To create another format for archived tracks, use a separate output folder or explicitly bypass history.
+A match in **either file** skips the track. After audio processing succeeds, the ID is recorded and the title/uploader key is appended to the other file. Existing entries are preserved, and title keys already present are not appended again. Both files are updated as each track finishes, so completed work survives Ctrl+C. These are the original two caches; the previous update had stopped adding to the title log, which is now restored. This update does not reconstruct title entries for past ID-only downloads.
 
-Counts increase only after audio processing and the archive step succeed. Archived, already-existing, filtered and failed entries do not consume the limit, and the script stops before fetching another entry when the limit is met. Repeated IDs are skipped within a run even with persistent history disabled. A collection can end with fewer completions than requested. A preview applies no completed-count limit because no downloads complete.
+`--no-cache` / `--nocache` / `--no-archive` bypass both files and leave them untouched. The count, duration, HQ policy and existing-file protection still apply. `--dry-run`, `--list-formats` and `--check-quality` never update either file. Back up both caches with your music; deleting only one can still leave the other blocking a repeat download.
 
-yt-dlp's disk cache is disabled for these runs. `--no-cache` also disables persistent download history; it does not disable filtering or overwrite protection. Ctrl+C returns 130 and preserves already archived successes. Success returns 0; download/dependency/authentication errors return 1; invalid CLI usage returns 2. Review the error log for partial failures before rerunning.
+Output is `OUTPUT/UPLOADER/TITLE [TRACK_ID].EXT`. The IDs prevent same-title files colliding. Archived, already-existing, filtered and failed tracks do not consume the requested count. Counts increase after successful processing; a collection may end before the limit is reached. Older personal-edition files without IDs in their names are still skipped when either cache matches them. Deliberately bypassing history can create another copy under the newer filename.
+
+`download_log_ERROR.txt` is only an error log, not another download cache. Success returns 0; download/dependency/authentication errors return 1; invalid CLI usage returns 2; Ctrl+C returns 130. yt-dlp's disk cache is disabled for these runs.
 
 ## Use downloaded MP3s in Spotify
 

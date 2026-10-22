@@ -82,6 +82,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertNotIn("extra", visited)
             self.assertEqual(stdout.count("Completed 1:"), 1)
             self.assertEqual((output / "downloaded_songs.txt").read_text().splitlines(), ["soundcloud archived", "soundcloud ok"])
+            self.assertEqual((output / "download_log.txt").read_text().splitlines(), ["fixture_ok_-_fixture_artist"])
 
     @unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "FFmpeg integration requires executables")
     def test_real_local_audio_conversion_and_archive_without_external_network(self):
@@ -165,6 +166,7 @@ class WorkflowTests(unittest.TestCase):
                 patch.object(yt_dlp.YoutubeDL, "download", download), patch.object(yt_dlp.YoutubeDL, "process_info", process):
             status, stdout, stderr = self.run_cli([URL, "--limit", "2", "--browser", "firefox", "--no-cache", "-o", directory])
             self.assertFalse(Path(directory, "downloaded_songs.txt").exists())
+            self.assertFalse(Path(directory, "download_log.txt").exists())
         self.assertEqual(status, 0, stderr)
         self.assertEqual(processed, ["one", "two"])
         self.assertEqual(len(sessions), 2)
@@ -240,7 +242,89 @@ class WorkflowTests(unittest.TestCase):
             status, stdout, _ = self.run_cli([URL, "--dry-run", "-o", str(output)])
             self.assertEqual(status, 0)
             self.assertNotIn("Completed", stdout)
+            self.assertIn("Preview: Fixture 1 - Fixture Artist", stdout)
             self.assertFalse(output.exists())
+
+    def test_both_existing_history_files_skip_tracks_and_receive_only_new_successes(self):
+        processed = []
+        def download(ydl, urls):
+            for key in ("id-cached", "title-cached", "new", "extra"):
+                ydl.process_ie_result(track(key), download=True)
+            return ydl._download_retcode
+        def process(ydl, info):
+            processed.append(info["id"])
+            info["__write_download_archive"] = True
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            archive = output / "downloaded_songs.txt"
+            titles = output / "download_log.txt"
+            archive.write_text("soundcloud id-cached\n", encoding="utf-8")
+            titles.write_text("fixture_title-cached_-_fixture_artist\n", encoding="utf-8")
+            with patch.object(yt_dlp.YoutubeDL, "download", download), patch.object(yt_dlp.YoutubeDL, "process_info", process):
+                status, _, stderr = self.run_cli([URL, "-o", directory])
+            self.assertEqual(status, 0, stderr)
+            self.assertEqual(processed, ["new"])
+            self.assertEqual(archive.read_text().splitlines(), ["soundcloud id-cached", "soundcloud new"])
+            self.assertEqual(titles.read_text().splitlines(), ["fixture_title-cached_-_fixture_artist", "fixture_new_-_fixture_artist"])
+
+    def test_history_is_saved_before_interrupt_and_not_duplicated(self):
+        def download(ydl, urls):
+            ydl.process_ie_result(track("new"), download=True)
+            raise KeyboardInterrupt
+        def process(ydl, info):
+            info["__write_download_archive"] = True
+        with tempfile.TemporaryDirectory() as directory, patch.object(yt_dlp.YoutubeDL, "download", download), \
+                patch.object(yt_dlp.YoutubeDL, "process_info", process):
+            for _ in range(2):
+                status, _, _ = self.run_cli([URL, "--all", "-o", directory])
+                self.assertEqual(status, 130)
+            self.assertEqual(Path(directory, "download_log.txt").read_text().splitlines(), ["fixture_new_-_fixture_artist"])
+            self.assertEqual(Path(directory, "downloaded_songs.txt").read_text().splitlines(), ["soundcloud new"])
+
+    def test_compact_default_hides_extractor_skips_and_progress_but_keeps_warnings(self):
+        def download(ydl, urls):
+            ydl.to_screen("[soundcloud] Downloading info JSON")
+            ydl.to_screen("[download] Old track already recorded in archive")
+            ydl.report_warning("Fixture actionable warning")
+            for hook in ydl._progress_hooks:
+                hook({"status": "finished", "info_dict": {"format_id": "fixture-source", "abr": 256}})
+            ydl.process_ie_result(track(), download=True)
+            return ydl._download_retcode
+        def process(ydl, info):
+            info["__write_download_archive"] = True
+        for verbose in (False, True):
+            with self.subTest(verbose=verbose), tempfile.TemporaryDirectory() as directory, \
+                    patch.object(yt_dlp.YoutubeDL, "download", download), patch.object(yt_dlp.YoutubeDL, "process_info", process):
+                status, stdout, stderr = self.run_cli([URL, "-o", directory, *(["--verbose"] if verbose else [])])
+                self.assertEqual(status, 0, stderr)
+                self.assertIn("Completed 1:", stdout)
+                self.assertIn("Fixture actionable warning", stderr)
+                if verbose:
+                    self.assertIn("[soundcloud] Downloading info JSON", stdout)
+                    self.assertIn("already recorded", stdout)
+                    self.assertIn("Source chosen:", stdout)
+                else:
+                    self.assertNotIn("[soundcloud]", stdout)
+                    self.assertNotIn("already recorded", stdout)
+                    self.assertNotIn("Source chosen:", stdout)
+                    self.assertLessEqual(len(stdout.splitlines()), 3)
+
+    def test_nocache_does_not_read_or_change_either_existing_history(self):
+        def download(ydl, urls):
+            ydl.process_ie_result(track(), download=True)
+            return ydl._download_retcode
+        def process(ydl, info):
+            info["__write_download_archive"] = True
+        with tempfile.TemporaryDirectory() as directory, patch.object(yt_dlp.YoutubeDL, "download", download), \
+                patch.object(yt_dlp.YoutubeDL, "process_info", process):
+            output = Path(directory)
+            for name, contents in [("downloaded_songs.txt", "soundcloud 1\n"), ("download_log.txt", "fixture_1_-_fixture_artist\n")]:
+                (output / name).write_text(contents)
+            before = {p.name: p.read_bytes() for p in output.iterdir()}
+            status, stdout, stderr = self.run_cli([URL, "--no-cache", "-o", directory])
+            self.assertEqual(status, 0, stderr)
+            self.assertIn("Completed 1:", stdout)
+            self.assertEqual(before, {p.name: p.read_bytes() for p in output.iterdir()})
 
     def test_aliases_and_personal_defaults(self):
         defaults = app.Defaults(output="personal", likes_url="https://soundcloud.com/user/likes", cookies="missing.txt", require_hq=True)
