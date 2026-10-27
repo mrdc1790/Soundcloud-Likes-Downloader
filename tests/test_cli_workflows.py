@@ -75,7 +75,13 @@ class WorkflowTests(unittest.TestCase):
             self.assertIn("[source: hls_aac_256k, 256 kbps]", stdout)
             self.assertNotIn("Downloading info JSON", stdout)
             self.assertEqual(Path(directory, "downloaded_songs.txt").read_text().splitlines(), ["soundcloud 23"])
-            self.assertEqual(Path(directory, "download_log_ERROR.txt").read_text(), stderr)
+            expected_errors = ("Skipped (region restricted): Region-blocked song\n"
+                               "  https://soundcloud.com/artist/region\n"
+                               "Skipped (DRM protected): DRM-blocked song\n"
+                               "  https://soundcloud.com/artist/drm\n")
+            self.assertEqual(Path(directory, "download_log_ERROR.txt").read_text(), expected_errors)
+            # Runtime/dependency warnings on stderr are deliberately not errors.
+            self.assertTrue(stderr.endswith(expected_errors))
 
     def test_source_summary_does_not_assume_original_bitrate(self):
         self.assertEqual(app.source_summary({"format_id": "download", "ext": "flac"}),
