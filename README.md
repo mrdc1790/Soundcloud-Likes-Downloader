@@ -23,7 +23,7 @@ On macOS/Linux activate with `source .venv/bin/activate`. If PowerShell blocks a
 
 ## Everyday commands
 
-Normal runs are compact: account (when signed in), a start message, one line per completed track, and the final summary. Already-downloaded tracks, extraction messages and progress chatter stay hidden. Warnings/errors remain visible. Add `--verbose` (or `-v`) for detailed diagnostics, skipped entries, progress and source reports.
+Normal runs are compact: account (when signed in), a start message, one line per completed track with its actual source format/bitrate, and the final summary. Already-downloaded tracks, extraction messages and progress chatter stay hidden. Warnings/errors remain visible. Region/DRM failures show the track title and link when available from the playlist; the same details are saved to `download_log_ERROR.txt`. A playlist/page failure is not attributed to the previous track. Add `--verbose` (or `-v`) for detailed diagnostics, skipped entries, progress and source reports.
 
 Replace example URLs/profile names with yours. `--help` lists every option and examples; the bottom of the entry script also has a short command reference.
 
@@ -78,6 +78,8 @@ During downloads, an HTTP 401/403 or authentication error prompts another accoun
 
 A missing HQ format, DRM restriction, unavailable track, timeout or HTTP 429 is not proof of expired login. Rate limits use bounded yt-dlp retries/backoff; wait before rerunning if they persist. Locked browser profiles and unsupported cookie decryption fail with an error: close the browser if necessary, try the correct profile, or supply a Netscape-format cookie file. See [yt-dlp's authentication options](https://github.com/yt-dlp/yt-dlp#authentication-options) and [SoundCloud extractor](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/soundcloud.py). The extractor refreshes its API client ID separately; that client ID is not your account token.
 
+The requirements include the `curl-cffi` extra for browser-request impersonation used by SoundCloud playlist requests. If an older installation warns that no impersonation target is available, reinstall this repo's requirements with the same Python executable you use to run the script. This dependency helps browser/TLS compatibility; it does not renew account tokens, supply missing HQ audio, or change your location.
+
 ## Options at a glance
 
 | Option | Effect |
@@ -112,6 +114,8 @@ Browsers: Firefox, Chrome, Chromium, Edge, Opera, Brave, Vivaldi, Safari and Wha
 `--list-formats` is implemented by this script, not just mentioned as a raw yt-dlp command. It and `--check-quality` inspect a **single track** without downloading audio, requiring FFmpeg, writing library files/history, or changing your original cookies. They still contact the service and use any selected authentication. Collections are rejected to avoid unexpectedly enumerating thousands of tracks. A successful inspection exits zero even if no HQ source is exposed; use `--require-hq` for download enforcement. `--dry-run` previews collections instead.
 
 [SoundCloud HQ is normally 256 kbps AAC](https://help.soundcloud.com/hc/en-us/articles/360051838074-High-Quality-Streaming). MP3 output is **V0 (variable bitrate)**, not a guaranteed 256/320 kbps file. Conversion cannot restore quality absent from the source. `--keep-original` avoids lossy conversion, but artwork/metadata support depends on the container. A creator-enabled original may have no reported bitrate and is not proof of a particular source quality. Available formats and the source actually chosen are reported separately from final completion.
+
+A completed-track line now identifies its **source before conversion**, for example `[source: hls_aac_256k, 256 kbps]` or `[source: creator original FLAC, bitrate unreported]`. Creator originals remain an exception to the numeric HQ cutoff: an original can have an unknown or lower bitrate. MP3 V0 is still the output format unless `--keep-original` is selected. Older completion lines without a source label do not establish which source was downloaded.
 
 ## Download history: the same two caches
 

@@ -12,6 +12,7 @@ from unittest.mock import patch
 import wave
 
 import yt_dlp
+from yt_dlp.extractor.soundcloud import SoundcloudIE
 
 import downloader_cli as app
 from soundcloud_quality import AuthenticationRejected
@@ -35,6 +36,64 @@ class WorkflowTests(unittest.TestCase):
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             status = app.main(args, **kwargs)
         return status, stdout.getvalue(), stderr.getvalue()
+
+    def test_region_and_drm_failures_include_the_correct_playlist_title_and_link(self):
+        # Use real playlist traversal and extractor exception handling. Each
+        # blocked track fails BEFORE full metadata or a download hook exists.
+        entries = [{"_type": "url", "ie_key": "Soundcloud", "id": key, "title": title,
+                    "url": f"https://soundcloud.com/artist/{slug}"}
+                   for key, title, slug in [("21", "Region-blocked song", "region"),
+                                            ("22", "DRM-blocked song", "drm"),
+                                            ("23", "Downloadable song", "available")]]
+        def extract(ie, url):
+            if url.endswith("/region"):
+                ie.raise_geo_restricted()
+            if url.endswith("/drm"):
+                raise yt_dlp.utils.ExtractorError("This video is DRM protected", expected=True)
+            info = track("23")
+            info["formats"][0].update(format_id="hls_aac_256k", abr=256)
+            return info
+        def download(ydl, urls):
+            ydl.process_ie_result({"_type": "playlist", "id": "fixture", "title": "Fixture",
+                                   "extractor": "soundcloud", "extractor_key": "Soundcloud",
+                                   "webpage_url": URL, "entries": entries}, download=True)
+            return ydl._download_retcode
+        def process(ydl, info):
+            for hook in ydl._progress_hooks:
+                hook({"status": "finished", "info_dict": dict(info)})
+            info["ext"] = "mp3"  # Source reporting must survive postprocessing.
+            info["__write_download_archive"] = True
+        with tempfile.TemporaryDirectory() as directory, patch.object(SoundcloudIE, "initialize", return_value=None), \
+                patch.object(SoundcloudIE, "_real_extract", extract), patch.object(yt_dlp.YoutubeDL, "download", download), \
+                patch.object(yt_dlp.YoutubeDL, "process_info", process):
+            status, stdout, stderr = self.run_cli([URL, "--require-hq", "-o", directory])
+            self.assertEqual(status, 1)
+            self.assertIn("Skipped (region restricted): Region-blocked song", stderr)
+            self.assertIn("https://soundcloud.com/artist/region", stderr)
+            self.assertIn("Skipped (DRM protected): DRM-blocked song", stderr)
+            self.assertIn("https://soundcloud.com/artist/drm", stderr)
+            self.assertIn("[source: hls_aac_256k, 256 kbps]", stdout)
+            self.assertNotIn("Downloading info JSON", stdout)
+            self.assertEqual(Path(directory, "downloaded_songs.txt").read_text().splitlines(), ["soundcloud 23"])
+            self.assertEqual(Path(directory, "download_log_ERROR.txt").read_text(), stderr)
+
+    def test_source_summary_does_not_assume_original_bitrate(self):
+        self.assertEqual(app.source_summary({"format_id": "download", "ext": "flac"}),
+                         "creator original FLAC, bitrate unreported")
+        self.assertEqual(app.source_summary({"format_id": "download", "ext": "mp3", "abr": 128}),
+                         "creator original MP3, 128 kbps")
+
+    def test_page_errors_or_mismatched_ids_do_not_inherit_a_song_title(self):
+        item = {"id": "21", "title": "Previous song", "webpage_url": URL}
+        for message in ("ERROR: [soundcloud:user] Unable to download next page", "ERROR: [soundcloud] 22: This video is DRM protected"):
+            self.assertEqual(app.contextual_error(message, item), message)
+
+    def test_verbose_failure_keeps_original_diagnostic_and_track_context(self):
+        message = "ERROR: [soundcloud] This video is not available from your location due to geo restriction"
+        rendered = app.contextual_error(message, {"title": "Blocked song", "webpage_url": URL}, verbose=True)
+        self.assertIn(message, rendered)
+        self.assertIn("Track: Blocked song", rendered)
+        self.assertIn(URL, rendered)
 
     def test_formats_show_standard_sources_despite_hq_history_and_duration(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -127,6 +186,7 @@ class WorkflowTests(unittest.TestCase):
             self.assertFalse(list(output.rglob("*.wav")))
             self.assertEqual((output / "downloaded_songs.txt").read_text().strip(), "soundcloud 1")
             self.assertIn("Completed 1:", stdout)
+            self.assertIn("[source: fixture, bitrate unreported]", stdout)
             existing = next(output.rglob("*.mp3"))
             before = (existing.read_bytes(), existing.stat().st_mtime_ns)
             def second_download(ydl, urls):

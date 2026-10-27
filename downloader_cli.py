@@ -217,6 +217,32 @@ def auth_error_message(message):
     return bool(re.search(r"HTTP (?:Error )?(?:401|403)\b|(?:token|oauth|login|authentication).*(?:invalid|expired|reject)|(?:invalid|expired|reject).*(?:token|oauth|login|authentication)", message, re.I))
 
 
+def source_summary(info):
+    bitrate = info.get("abr") or info.get("tbr")
+    rate = f"{bitrate:g} kbps" if isinstance(bitrate, (int, float)) else "bitrate unreported"
+    if info.get("format_id") == "download":
+        return f"creator original {(info.get('ext') or '?').upper()}, {rate}"
+    return f"{info.get('format_id') or info.get('ext') or 'unknown format'}, {rate}"
+
+
+def contextual_error(message, track, verbose=False):
+    # A playlist/page error must never inherit the previous song's identity.
+    if not track or not re.search(r"\[(?:soundcloud|youtube)\]", message):
+        return message
+    reported_id = re.search(r"\[soundcloud\]\s+(\d+):", message)
+    if reported_id and str(track.get("id")) != reported_id[1]:
+        return message
+    name = track.get("title") or f"Track {track.get('id', '?')}"
+    link = track.get("webpage_url") or (track.get("url") if track.get("_type") in {"url", "url_transparent"} else None)
+    if not verbose and re.search(r"geo restriction|geo.restricted|not available from your location", message, re.I):
+        result = f"Skipped (region restricted): {name}"
+    elif not verbose and re.search(r"DRM protected", message, re.I):
+        result = f"Skipped (DRM protected): {name}"
+    else:
+        result = f"{message}\n  Track: {name}"
+    return result + (f"\n  {link}" if link else "")
+
+
 def main(argv=None, *, defaults=None):
     cli = parser(defaults)
     try:
@@ -240,6 +266,7 @@ def main(argv=None, *, defaults=None):
             return 1
 
     completed = []
+    sources = {}
     previous = set()
     output = args.output_dir.expanduser()
 
@@ -258,7 +285,9 @@ def main(argv=None, *, defaults=None):
                         handle.write(title + "\n")
                     previous.add(title)
                 completed.append(key)
-                print(f"Completed {len(completed)}: {info.get('title', 'Untitled')}")
+                source = sources.get(key)
+                suffix = f" [source: {source}]" if source else ""
+                print(f"Completed {len(completed)}: {info.get('title', 'Untitled')}{suffix}")
             # after_video runs AFTER postprocessing and the ID archive write.
             # Stop here, before yt-dlp can fetch another playlist entry.
             if args.limit is not None and len(completed) >= args.limit:
@@ -269,6 +298,7 @@ def main(argv=None, *, defaults=None):
         def __init__(self):
             self.auth_hint = False
             self.other_error = False
+            self.track = None
 
         def debug(self, message):
             if args.verbose:
@@ -284,10 +314,11 @@ def main(argv=None, *, defaults=None):
                 return
             self.auth_hint |= auth_error_message(message)
             self.other_error |= not auth_error_message(message)
-            print(message, file=sys.stderr)
+            rendered = contextual_error(message, self.track, args.verbose)
+            print(rendered, file=sys.stderr)
             if not args.dry_run and not args.inspect:
                 with (output / "download_log_ERROR.txt").open("a", encoding="utf-8") as handle:
-                    handle.write(message + "\n")
+                    handle.write(rendered + "\n")
 
     try:
         if not args.nocache and not args.inspect:
@@ -333,6 +364,10 @@ def main(argv=None, *, defaults=None):
                         print(f"Downloading {target_count}; checking both history files." if not args.nocache else f"Downloading {target_count}; history disabled.")
                     base_match = ydl.params["match_filter"]
                     def skip_existing(info, *, incomplete=False, match=base_match, session_ydl=ydl):
+                        if info.get("_type", "video") in {"video", "url", "url_transparent"}:
+                            # SoundCloud likes provide title + permalink before
+                            # full extraction, which can fail for region/DRM limits.
+                            logger.track = {key: info.get(key) for key in ("_type", "id", "title", "webpage_url", "url")}
                         reason = match(info, incomplete=incomplete)
                         if reason or incomplete or not info.get("ext"):
                             return reason
@@ -342,9 +377,12 @@ def main(argv=None, *, defaults=None):
                         return None
                     ydl.params["match_filter"] = skip_existing
                     def report_source(event):
-                        if args.verbose and event.get("status") == "finished":
+                        if event.get("status") == "finished":
                             info = event.get("info_dict") or {}
-                            print(f"Source chosen: {info.get('format_id', '?')}, {info.get('ext', '?')}, ~{info.get('abr') or info.get('tbr') or '?'} kbps; postprocessing pending.")
+                            if info.get("id") is not None:
+                                sources[(info.get("extractor_key"), info.get("id"))] = source_summary(info)
+                            if args.verbose:
+                                print(f"Source chosen: {source_summary(info)}; postprocessing pending.")
                     ydl.add_progress_hook(report_source)
                     ydl.add_post_processor(RecordCompletion(ydl), when="after_video")
                     try:
