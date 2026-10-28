@@ -3,6 +3,11 @@
 from downloader_cli import Defaults, build_options, legacy_id, main, parser, resolve
 
 if __name__ == "__main__":
+    import sys
+    if sys.argv[1:] == ["--gui"]:
+        from downloader_gui import launch
+        launch()
+        raise SystemExit(0)
     raise SystemExit(main())
 
 # Quick reference (replace URL with your track/likes/playlist URL):

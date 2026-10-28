@@ -8,6 +8,7 @@ from pathlib import Path
 import re
 import shutil
 import sys
+import time
 from urllib.parse import urlparse
 
 
@@ -26,9 +27,9 @@ def positive_int(value):
     return number
 
 
-def parser(defaults=None):
+def parser(defaults=None, *, parser_class=argparse.ArgumentParser):
     defaults = defaults or Defaults()
-    cli = argparse.ArgumentParser(
+    cli = parser_class(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""Examples (replace URL with an actual track/collection URL):
   python script.py https://soundcloud.com/ARTIST/TRACK -F --browser firefox
@@ -39,6 +40,7 @@ def parser(defaults=None):
   python script.py --check-quality --browser firefox
 
 Count means NEW completed downloads, default 1; use --all for an entire collection.
+Desktop window: python script.py --gui (entry point only; no other arguments).
 likes/count shortcuts use SOUNDCLOUD_LIKES_URL (or the personal edition's default).
 -F/--list-formats and --check-quality inspect ONE track, ignoring history/HQ policy.
 --no-cache bypasses history, not duration/quality/count safeguards. See README.md.
@@ -72,6 +74,7 @@ likes/count shortcuts use SOUNDCLOUD_LIKES_URL (or the personal edition's defaul
     mode.add_argument("-F", "--list-formats", action="store_true", help="print available formats for ONE track, including standard-quality sources")
     mode.add_argument("--check-quality", action="store_true", help="print SoundCloud account/source report (default track: Monster Mashup)")
     mode.add_argument("--dry-run", action="store_true", help="preview collection metadata; completed-download limits do not apply")
+    inspection.add_argument("--preview-limit", type=positive_int, metavar="N", help="inspect at most N collection entries with --dry-run (including history skips)")
     return cli
 
 
@@ -92,6 +95,8 @@ def resolve(cli, args):
             cli.error(f"invalid count: {error}")
 
     defaults = args.edition_defaults
+    if args.preview_limit and not args.dry_run:
+        cli.error("--preview-limit requires --dry-run")
     likes = os.environ.get("SOUNDCLOUD_LIKES_URL", defaults.likes_url)
     count = None
     if args.target == "url":
@@ -204,6 +209,8 @@ def build_options(args, completed, cancelled, previous=None):
                         "playlistend": 1, "extract_flat": "in_playlist"})
     if args.dry_run:
         options["forceprint"] = {"video": ["Preview: %(title)s - %(uploader)s"]}
+        if args.preview_limit:
+            options["playlistend"] = args.preview_limit
     if not args.nocache and not args.inspect and not args.dry_run:
         options["download_archive"] = str(output / "downloaded_songs.txt")
     elif args.dry_run and not args.nocache:
@@ -243,7 +250,20 @@ def contextual_error(message, track, verbose=False):
     return result + (f"\n  {link}" if link else "")
 
 
-def main(argv=None, *, defaults=None):
+def main(argv=None, *, defaults=None, event_handler=None, cancel_requested=None):
+    """Run the CLI, optionally reporting structured desktop events.
+
+    Callbacks are per run. The desktop worker owns cancellation; the CLI's
+    output, exit codes and two on-disk history files retain their contract.
+    """
+    def emit(kind, **values):
+        if event_handler:
+            event_handler({"type": kind, **values})
+
+    def check_cancel():
+        if cancel_requested and cancel_requested():
+            raise KeyboardInterrupt
+
     cli = parser(defaults)
     try:
         args = resolve(cli, cli.parse_args(argv))
@@ -263,15 +283,18 @@ def main(argv=None, *, defaults=None):
         missing = [name for name in ("ffmpeg", "ffprobe") if not shutil.which(name)]
         if missing:
             print(f"Missing executables on PATH: {', '.join(missing)}. Install FFmpeg; see README.md.", file=sys.stderr)
+            emit("error", message=f"Missing executables on PATH: {', '.join(missing)}")
             return 1
 
     completed = []
     sources = {}
     previous = set()
+    processing = False
     output = args.output_dir.expanduser()
 
     class RecordCompletion(PostProcessor):
         def run(self, info):
+            nonlocal processing
             downloads = info.get("requested_downloads") or []
             if not downloads or not all(item.get("__write_download_archive") is True for item in downloads):
                 return [], info
@@ -288,6 +311,11 @@ def main(argv=None, *, defaults=None):
                 source = sources.get(key)
                 suffix = f" [source: {source}]" if source else ""
                 print(f"Completed {len(completed)}: {info.get('title', 'Untitled')}{suffix}")
+                emit("completed", id=str(info.get("id", "")), title=info.get("title", "Untitled"),
+                     source=source or "Not reported", completed=len(completed),
+                     path=info.get("filepath") or info.get("_filename"))
+            processing = False
+            check_cancel()
             # after_video runs AFTER postprocessing and the ID archive write.
             # Stop here, before yt-dlp can fetch another playlist entry.
             if args.limit is not None and len(completed) >= args.limit:
@@ -301,26 +329,35 @@ def main(argv=None, *, defaults=None):
             self.track = None
 
         def debug(self, message):
+            if not processing:
+                check_cancel()
             if args.verbose:
                 print(message)
 
         def warning(self, message):
             print(f"Warning: {message}", file=sys.stderr)
+            emit("warning", message=message)
 
         def error(self, message):
+            nonlocal processing
             # yt-dlp sends non-fatal deprecations through logger.error too.
             if re.match(r"(?:ERROR:\s*)?Deprecated Feature:", message):
                 self.warning(message)
                 return
             self.auth_hint |= auth_error_message(message)
             self.other_error |= not auth_error_message(message)
+            processing = False
             rendered = contextual_error(message, self.track, args.verbose)
             print(rendered, file=sys.stderr)
+            # Only attach the row identity when the rendered message actually
+            # identifies this track. Page failures must not relabel a prior row.
+            emit("error", message=rendered, id=str((self.track or {}).get("id", "")) if rendered != message else "")
             if not args.dry_run and not args.inspect:
                 with (output / "download_log_ERROR.txt").open("a", encoding="utf-8") as handle:
                     handle.write(rendered + "\n")
 
     try:
+        check_cancel()
         if not args.nocache and not args.inspect:
             previous.update(read_title_history(output))
         options = build_options(args, completed, DownloadCancelled, previous)
@@ -330,6 +367,7 @@ def main(argv=None, *, defaults=None):
         refresh_profile = args.refresh_profile if args.refresh_browser else args.profile
         previous_errors = False
         for attempt in range(2 if refresh_browser and is_soundcloud(args.target) else 1):
+            check_cancel()
             logger = Logger()
             options["logger"] = logger
             browser = refresh_browser if attempt else args.browser
@@ -341,11 +379,14 @@ def main(argv=None, *, defaults=None):
                 with authenticated_session(cookies, browser=browser, profile=profile, options=options,
                                            verify_soundcloud=is_soundcloud(args.target)) as (ydl, account):
                     if account:
+                        emit("account", username=account.get("username", "?"),
+                             permalink=account.get("permalink", "?"))
                         if args.inspect or args.verbose:
                             print(account_summary(account))
                         else:
                             print(f"Account: {account.get('username', '?')} (@{account.get('permalink', '?')})")
                     if args.inspect:
+                        check_cancel()
                         info = probe_quality(ydl, args.target) if args.check_quality else ydl.extract_info(args.target, download=False)
                         if not info or info.get("_type") in ("playlist", "multi_video"):
                             raise RuntimeError("Format inspection requires an accessible single track URL.")
@@ -354,6 +395,9 @@ def main(argv=None, *, defaults=None):
                             if account is None:
                                 print("Guest access: account/subscription not checked; select --browser or --cookies to verify login.")
                             quality_summary(info)
+                        emit("inspection", id=str(info.get("id", "")), title=info.get("title", "?"),
+                             formats=[{key: item.get(key) for key in ("format_id", "ext", "abr", "tbr", "format_note")}
+                                      for item in info.get("formats", [])])
                         return int(bool(ydl._download_retcode))
                     if args.verbose:
                         if is_soundcloud(args.target):
@@ -364,23 +408,44 @@ def main(argv=None, *, defaults=None):
                         print(f"Downloading {target_count}; checking both history files." if not args.nocache else f"Downloading {target_count}; history disabled.")
                     base_match = ydl.params["match_filter"]
                     def skip_existing(info, *, incomplete=False, match=base_match, session_ydl=ydl):
+                        check_cancel()
                         if info.get("_type", "video") in {"video", "url", "url_transparent"}:
                             # SoundCloud likes provide title + permalink before
                             # full extraction, which can fail for region/DRM limits.
                             logger.track = {key: info.get(key) for key in ("_type", "id", "title", "webpage_url", "url")}
+                            if info.get("id") is not None:
+                                emit("track", id=str(info["id"]), title=info.get("title") or "Reading track…")
                         reason = match(info, incomplete=incomplete)
+                        if reason:
+                            emit("skipped", id=str(info.get("id", "")), title=info.get("title", ""), reason=reason)
                         if reason or incomplete or not info.get("ext"):
                             return reason
                         final = dict(info, ext=info["ext"] if args.original else "mp3")
                         if Path(session_ydl.prepare_filename(final)).exists():
+                            emit("skipped", id=str(info.get("id", "")), title=info.get("title", ""), reason="Output already exists")
                             return "Output already exists; leaving it unchanged (not a new completion)"
+                        if args.dry_run:
+                            emit("preview", id=str(info.get("id", "")), title=info.get("title", ""), source=source_summary(info))
                         return None
                     ydl.params["match_filter"] = skip_existing
+                    last_progress = 0.0
                     def report_source(event):
+                        nonlocal last_progress, processing
+                        check_cancel()
+                        info = event.get("info_dict") or {}
+                        now = time.monotonic()
+                        if event.get("status") == "downloading" and now - last_progress >= 0.2:
+                            last_progress = now
+                            emit("progress", id=str(info.get("id", "")), title=info.get("title", ""),
+                                 downloaded=event.get("downloaded_bytes", 0),
+                                 total=event.get("total_bytes") or event.get("total_bytes_estimate"),
+                                 speed=event.get("speed"), eta=event.get("eta"))
                         if event.get("status") == "finished":
-                            info = event.get("info_dict") or {}
+                            processing = True
                             if info.get("id") is not None:
                                 sources[(info.get("extractor_key"), info.get("id"))] = source_summary(info)
+                            emit("processing", id=str(info.get("id", "")), title=info.get("title", ""),
+                                 source=source_summary(info))
                             if args.verbose:
                                 print(f"Source chosen: {source_summary(info)}; postprocessing pending.")
                     ydl.add_progress_hook(report_source)
@@ -401,7 +466,9 @@ def main(argv=None, *, defaults=None):
                     raise
     except KeyboardInterrupt:
         print("Interrupted; completed tracks remain in the download archive unless history was disabled.")
+        emit("cancelled", completed=len(completed))
         return 130
     except (yt_dlp.utils.YoutubeDLError, RuntimeError, OSError) as error:
         print(f"Failed: {error}", file=sys.stderr)
+        emit("error", message=str(error))
         return 1
