@@ -14,13 +14,10 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 from downloader_cli import Defaults, browser_names
 from downloader_desktop import DownloadProcess, Settings, absolute_path, build_command, load_settings, save_settings
-
-BG = "#f2f1ed"
-PAPER = "#ffffff"
-INK = "#202b32"
-MUTED = "#637078"
-ORANGE = "#d74b20"
-GREEN = "#27745c"
+from downloader_ui import (
+    BG, CARD, SURFACE, LINE, TEXT, MUTED, ACCENT, GREEN, FONT,
+    Panel, bind_form_scrolling, configure_theme, style_titlebar, wave_mark,
+)
 
 
 class DownloaderApp:
@@ -49,7 +46,7 @@ class DownloaderApp:
         root.geometry("1160x790")
         root.minsize(1000, 720)
         root.configure(bg=BG)
-        root.option_add("*Font", "{Segoe UI} 10")
+        root.option_add("*Font", (FONT, 10))
         self._style()
         self._build(edition)
         self._auth_state()
@@ -64,37 +61,16 @@ class DownloaderApp:
         self._history()
         root.protocol("WM_DELETE_WINDOW", self.close)
         root.bind("<Control-Return>", lambda _: self.start("download") if not self.busy else None)
+        root.after_idle(lambda: style_titlebar(root))
         root.after(80, self._poll)
 
     def _style(self):
-        style = ttk.Style(self.root)
-        style.theme_use("clam")
-        style.configure(".", background=BG, foreground=INK, font=("Segoe UI", 10))
-        style.configure("TFrame", background=BG)
-        style.configure("Paper.TFrame", background=PAPER)
-        style.configure("TLabel", background=BG)
-        style.configure("Muted.TLabel", foreground=MUTED)
-        style.configure("TButton", padding=(12, 8), background="#e7e8e4", borderwidth=0)
-        style.map("TButton", background=[("active", "#daddd7"), ("disabled", "#ebece8")],
-                  foreground=[("disabled", "#929994")])
-        style.configure("Accent.TButton", background=ORANGE, foreground="white", font=("Segoe UI", 10, "bold"))
-        style.map("Accent.TButton", background=[("active", "#b83c17"), ("disabled", "#d7a18f")],
-                  foreground=[("disabled", "#fff4ef")])
-        style.configure("TEntry", fieldbackground=PAPER, padding=7, bordercolor="#d8dcd5")
-        style.configure("TCombobox", fieldbackground=PAPER, padding=6, arrowsize=14)
-        style.map("TCombobox", fieldbackground=[("readonly", PAPER)])
-        style.configure("TNotebook", borderwidth=0, tabmargins=(0, 0, 0, 10))
-        style.configure("TNotebook.Tab", padding=(14, 9), background="#e5e7e1")
-        style.map("TNotebook.Tab", background=[("selected", PAPER)], foreground=[("selected", ORANGE)])
-        style.configure("Treeview", background=PAPER, fieldbackground=PAPER, rowheight=34, borderwidth=0)
-        style.configure("Treeview.Heading", background="#e8ebe5", font=("Segoe UI", 9, "bold"), padding=8)
-        style.map("Treeview", background=[("selected", "#ffe1d2")], foreground=[("selected", INK)])
-        style.configure("TProgressbar", troughcolor="#e0e5dd", background=ORANGE, borderwidth=0, thickness=7)
+        configure_theme(self.root)
 
     def _label(self, parent, text, row, note=None):
-        ttk.Label(parent, text=text, font=("Segoe UI", 10, "bold")).grid(row=row, column=0, columnspan=3, sticky="w", pady=(14, 5))
+        ttk.Label(parent, text=text, font=(FONT, 10, "bold")).grid(row=row, column=0, columnspan=3, sticky="w", pady=(16, 6))
         if note:
-            ttk.Label(parent, text=note, style="Muted.TLabel", wraplength=335).grid(row=row+1, column=0, columnspan=3, sticky="w")
+            ttk.Label(parent, text=note, style="Muted.TLabel", wraplength=300).grid(row=row+1, column=0, columnspan=3, sticky="w")
 
     def _entry(self, parent, key, row, column=0, span=3, width=None):
         widget = ttk.Entry(parent, textvariable=self.values[key], width=width)
@@ -121,47 +97,53 @@ class DownloaderApp:
         return widget
 
     def _build(self, edition):
-        header = tk.Frame(self.root, bg=INK, padx=28, pady=20)
+        header = tk.Frame(self.root, bg=BG, padx=26, pady=14)
         header.pack(fill="x")
-        tk.Label(header, text="SOUNDCLOUD  /  LOCAL LIBRARY", bg=INK, fg="#f29a66",
-                 font=("Segoe UI", 9, "bold")).pack(anchor="w")
-        tk.Label(header, text="From SoundCloud to your library.", bg=INK, fg="white",
-                 font=("Segoe UI", 21, "bold")).pack(anchor="w", pady=(5, 3))
-        tk.Label(header, text=f"{edition} edition   ·   Likes, playlists & tracks   ·   MP3 V0 or source audio",
-                 bg=INK, fg="#bbc7cd").pack(anchor="w")
+        wave_mark(header).pack(side="left", padx=(0, 16))
+        brand = tk.Frame(header, bg=BG)
+        brand.pack(side="left")
+        tk.Label(brand, text="SoundCloud", bg=BG, fg=MUTED, font=(FONT, 9)).pack(anchor="w")
+        tk.Label(brand, text="Library Studio", bg=BG, fg=TEXT, font=(FONT, 21, "bold")).pack(anchor="w")
+        tk.Label(header, text=f"{edition.upper()} EDITION", bg=SURFACE, fg=MUTED,
+                 font=(FONT, 9, "bold"), padx=15, pady=9).pack(side="right")
+        tk.Frame(self.root, bg=LINE, height=1).pack(fill="x", padx=26)
 
-        self.environment = ttk.Label(self.root, padding=(26, 9), style="Muted.TLabel")
+        self.environment = ttk.Label(self.root, padding=(26, 12), style="Shell.TLabel")
         self.environment.pack(side="bottom", fill="x")
-        body = ttk.Frame(self.root, padding=(24, 20, 24, 12))
+        body = ttk.Frame(self.root, padding=(24, 22, 24, 0), style="Shell.TFrame")
         body.pack(fill="both", expand=True)
-        body.columnconfigure(0, minsize=355, weight=0)
+        body.columnconfigure(0, minsize=388, weight=0)
         body.columnconfigure(1, weight=1)
         body.rowconfigure(0, weight=1)
-        left = ttk.Frame(body, width=355)
-        left.grid(row=0, column=0, sticky="nsew", padx=(0, 24))
-        left.grid_propagate(False)
+        self.settings_panel = Panel(body)
+        self.settings_panel.grid(row=0, column=0, sticky="nsew", padx=(0, 18))
+        left = self.settings_panel.content
         left.columnconfigure(0, weight=1)
-        tabs = ttk.Notebook(left)
-        tabs.grid(row=0, column=0, sticky="nsew")
-        left.rowconfigure(0, weight=1)
+        ttk.Label(left, text="New download", font=(FONT, 16, "bold")).grid(row=0, column=0, sticky="w")
+        ttk.Frame(left, height=18).grid(row=1, column=0)
+        self.settings_tabs = tabs = ttk.Notebook(left)
+        tabs.grid(row=2, column=0, sticky="nsew")
+        left.rowconfigure(2, weight=1)
         frames = []
+        self.form_canvases = []
         for name in ("Download", "Sign in", "Options"):
             wrapper = ttk.Frame(tabs)
-            canvas = tk.Canvas(wrapper, bg=BG, highlightthickness=0, width=330)
+            canvas = tk.Canvas(wrapper, bg=CARD, highlightthickness=0, width=300)
             scrollbar = ttk.Scrollbar(wrapper, command=canvas.yview)
             canvas.configure(yscrollcommand=scrollbar.set)
             scrollbar.pack(side="right", fill="y")
             canvas.pack(side="left", fill="both", expand=True)
-            frame = ttk.Frame(canvas, padding=(2, 0, 6, 12))
+            frame = ttk.Frame(canvas, padding=(0, 0, 6, 12))
             slot = canvas.create_window(0, 0, anchor="nw", window=frame)
             frame.bind("<Configure>", lambda event, area=canvas: area.configure(scrollregion=area.bbox("all")))
             canvas.bind("<Configure>", lambda event, area=canvas, window=slot: area.itemconfigure(window, width=event.width))
             frame.columnconfigure(0, weight=1)
             tabs.add(wrapper, text=name)
             frames.append(frame)
+            self.form_canvases.append((canvas, frame))
         download, auth, advanced = frames
 
-        self._label(download, "Track, playlist or likes URL", 0)
+        self._label(download, "Source URL", 0)
         self.target_entry = self._entry(download, "target", 1)
         self._button(download, "My likes", self.use_likes, row=2, column=0, sticky="w", pady=(5, 0))
         self._label(download, "Save music to", 3)
@@ -174,12 +156,12 @@ class DownloaderApp:
         all_box.grid(row=6, column=1, columnspan=2, sticky="w", padx=(12, 0))
         self.form_controls.append((all_box, "normal"))
         ttk.Label(download, text="History skips and failures don't count toward your limit.",
-                  style="Muted.TLabel", wraplength=335).grid(row=7, column=0, columnspan=3, sticky="w", pady=(5, 0))
+                  style="Muted.TLabel", wraplength=300).grid(row=7, column=0, columnspan=3, sticky="w", pady=(5, 0))
         self._label(download, "Audio", 8)
         self._check(download, "Keep original source audio", "original", 9)
-        self._check(download, "Require SoundCloud HQ / creator original", "require_hq", 10)
+        self._check(download, "Require HQ / creator original", "require_hq", 10)
         ttk.Label(download, text="Otherwise: best available → MP3 V0.\nConversion cannot improve the source quality.",
-                  style="Muted.TLabel", wraplength=335).grid(row=11, column=0, columnspan=3, sticky="w", pady=(8, 0))
+                  style="Muted.TLabel", wraplength=300).grid(row=11, column=0, columnspan=3, sticky="w", pady=(8, 0))
 
         self._label(auth, "Authentication", 0)
         self._combo(auth, "auth", ["Guest", "Cookie file", "Browser"], 1)
@@ -195,45 +177,46 @@ class DownloaderApp:
         self._label(auth, "Fallback profile (optional)", 10)
         self.fallback_entry = self._entry(auth, "fallback_profile", 11)
         ttk.Label(auth, text="Reads an existing signed-in session. Cookie files are never replaced.\nGo+ access doesn't guarantee HQ for every track.",
-                  wraplength=335, style="Muted.TLabel").grid(row=12, column=0, columnspan=3, sticky="w", pady=(14, 0))
+                  wraplength=300, style="Muted.TLabel").grid(row=12, column=0, columnspan=3, sticky="w", pady=(14, 0))
 
         self._label(advanced, "Maximum track duration (seconds)", 0)
         self._entry(advanced, "max_duration", 1)
         self._check(advanced, "Bypass both history files for this run", "no_cache", 2)
         ttk.Label(advanced, text="Leaves both caches untouched. Existing files still stay protected.",
-                  style="Muted.TLabel", wraplength=335).grid(row=3, column=0, columnspan=3, sticky="w", pady=(5, 0))
+                  style="Muted.TLabel", wraplength=300).grid(row=3, column=0, columnspan=3, sticky="w", pady=(5, 0))
         self._check(advanced, "Verbose diagnostics", "verbose", 4)
         self._label(advanced, "Library history", 5)
-        self.history_label = ttk.Label(advanced, style="Muted.TLabel", wraplength=335)
+        self.history_label = ttk.Label(advanced, style="Muted.TLabel", wraplength=300)
         self.history_label.grid(row=6, column=0, columnspan=3, sticky="w")
         self._label(advanced, "Local preferences", 7, "Remembers this form on this computer, including URL and file paths. Cookie contents and account tokens are never saved in preferences.")
         self._button(advanced, "Reset to edition defaults", self.reset, row=9, column=0, columnspan=3, sticky="w", pady=(16, 0))
 
         actions = ttk.Frame(left)
-        actions.grid(row=1, column=0, sticky="ew", pady=(16, 0))
+        actions.grid(row=3, column=0, sticky="ew", pady=(18, 0))
         actions.columnconfigure(0, weight=1)
         actions.columnconfigure(1, weight=1)
-        self.download_button = ttk.Button(actions, text="↓  Download", style="Accent.TButton", command=lambda: self.start("download"))
+        self.download_button = ttk.Button(actions, text="↓   Download", style="Studio.TButton", command=lambda: self.start("download"))
         self.download_button.grid(row=0, column=0, columnspan=2, sticky="ew")
-        self.preview_button = ttk.Button(actions, text="Preview 25 entries", command=lambda: self.start("preview"))
+        self.preview_button = ttk.Button(actions, text="Preview 25", command=lambda: self.start("preview"))
         self.preview_button.grid(row=1, column=0, sticky="ew", pady=(7, 0), padx=(0, 4))
         self.quality_button = ttk.Button(actions, text="Check quality", command=lambda: self.start("quality"))
         self.quality_button.grid(row=1, column=1, sticky="ew", pady=(7, 0), padx=(4, 0))
         self.form_controls += [(item, "normal") for item in (self.download_button, self.preview_button, self.quality_button)]
 
-        right = ttk.Frame(body)
-        right.grid(row=0, column=1, sticky="nsew")
+        self.session_panel = Panel(body, padding=24)
+        self.session_panel.grid(row=0, column=1, sticky="nsew")
+        right = self.session_panel.content
         right.columnconfigure(0, weight=1)
         right.rowconfigure(5, weight=1)
         top = ttk.Frame(right)
         top.grid(row=0, column=0, sticky="ew")
-        ttk.Label(top, text="Your session", font=("Segoe UI", 17, "bold")).pack(side="left")
-        self.open_button = ttk.Button(top, text="Open folder ↗", command=self.open_folder)
+        ttk.Label(top, text="SESSION", foreground=MUTED, font=(FONT, 9, "bold")).pack(side="left")
+        self.open_button = ttk.Button(top, text="Open folder  ↗", command=self.open_folder)
         self.open_button.pack(side="right")
         self.status = tk.StringVar(value="Ready when you are")
         self.detail = tk.StringVar(value="Paste a URL or choose My likes, then download or inspect its source quality.")
-        status_label = ttk.Label(right, textvariable=self.status, font=("Segoe UI", 13, "bold"), wraplength=630)
-        status_label.grid(row=1, column=0, sticky="w", pady=(24, 6))
+        status_label = ttk.Label(right, textvariable=self.status, font=(FONT, 18, "bold"), wraplength=580)
+        status_label.grid(row=1, column=0, sticky="w", pady=(22, 10))
         self.account = tk.StringVar(value=f"{self.values['auth'].get()} access · Account checked when a job starts")
         account_label = ttk.Label(right, textvariable=self.account, style="Muted.TLabel", wraplength=610)
         account_label.grid(row=2, column=0, sticky="w", pady=(0, 8))
@@ -241,8 +224,8 @@ class DownloaderApp:
         detail_label.grid(row=3, column=0, sticky="w")
         right.bind("<Configure>", lambda event: [label.configure(wraplength=max(250, event.width))
                                                  for label in (status_label, account_label, detail_label)])
-        self.progress = ttk.Progressbar(right, mode="determinate")
-        self.progress.grid(row=4, column=0, sticky="ew", pady=(15, 18))
+        self.progress = ttk.Progressbar(right, mode="determinate", style="Studio.Horizontal.TProgressbar")
+        self.progress.grid(row=4, column=0, sticky="ew", pady=(20, 24))
         self.activity = ttk.Notebook(right)
         self.activity.grid(row=5, column=0, sticky="nsew")
         tracks = ttk.Frame(self.activity)
@@ -250,7 +233,7 @@ class DownloaderApp:
         self.activity.add(tracks, text="Tracks")
         self.activity.add(logs, text="Activity log")
         self.tree = ttk.Treeview(tracks, columns=("title", "source", "state"), show="headings", selectmode="browse")
-        for key, title, width in (("title", "TRACK", 240), ("source", "SOURCE", 160), ("state", "STATUS", 110)):
+        for key, title, width in (("title", "TRACK", 240), ("source", "SOURCE", 170), ("state", "STATUS", 105)):
             self.tree.heading(key, text=title)
             self.tree.column(key, width=width, minwidth=70, stretch=True)
         self.tree.tag_configure("done", foreground=GREEN)
@@ -259,10 +242,15 @@ class DownloaderApp:
         scroll = ttk.Scrollbar(tracks, orient="vertical", command=self.tree.yview)
         scroll.pack(side="right", fill="y")
         self.tree.configure(yscrollcommand=scroll.set)
-        self.empty = tk.Label(tracks, text="Your library starts with a URL.\n\nTracks, progress and actual source quality will appear here.",
-                              bg=PAPER, fg=MUTED, font=("Segoe UI", 10), wraplength=380, justify="center")
-        self.empty.place(relx=0.5, rely=0.45, anchor="center")
-        self.log = tk.Text(logs, bg=PAPER, fg=INK, relief="flat", wrap="word", padx=14, pady=12,
+        self.empty = tk.Frame(tracks, bg=CARD)
+        wave_mark(self.empty, size=48, color="#6c6571", background=CARD).pack(pady=(0, 12))
+        tk.Label(self.empty, text="Your next favourite starts here.", bg=CARD, fg=TEXT,
+                 font=(FONT, 11, "bold"), wraplength=300).pack()
+        tk.Label(self.empty, text="Add a URL to see your tracks\nand their source quality.",
+                 bg=CARD, fg=MUTED, font=(FONT, 10), wraplength=300, justify="center").pack(pady=(8, 0))
+        self.empty.place(relx=0.5, rely=0.55, anchor="center")
+        self.log = tk.Text(logs, bg=CARD, fg=MUTED, insertbackground=TEXT, selectbackground=LINE,
+                           relief="flat", highlightthickness=0, wrap="word", padx=14, pady=14,
                            font=("Consolas", 10), state="disabled")
         self.log.pack(side="left", fill="both", expand=True)
         log_scroll = ttk.Scrollbar(logs, command=self.log.yview)
@@ -274,6 +262,8 @@ class DownloaderApp:
         ttk.Label(bottom, textvariable=self.counts, style="Muted.TLabel").pack(side="left")
         self.stop_button = ttk.Button(bottom, text="Stop safely", command=self.stop, state="disabled")
         self.stop_button.pack(side="right")
+        for canvas, content in self.form_canvases:
+            bind_form_scrolling(canvas, content)
 
     def settings(self):
         return Settings(**{key: value.get() for key, value in self.values.items()})
@@ -368,7 +358,7 @@ class DownloaderApp:
         self._save()
         self.tree.delete(*self.tree.get_children())
         self.rows.clear()
-        self.empty.place(relx=0.5, rely=0.45, anchor="center")
+        self.empty.place(relx=0.5, rely=0.55, anchor="center")
         self.completed = self.issues = 0
         self.counts.set("0 completed   ·   0 issues")
         self.action = action

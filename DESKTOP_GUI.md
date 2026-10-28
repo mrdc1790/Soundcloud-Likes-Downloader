@@ -2,7 +2,13 @@
 
 Launch `python soundcloud_gui.pyw` from this repository, or double-click that file on Windows when `.pyw` files are associated with the Python environment containing the requirements. The CLI entry point also accepts `--gui` on its own. Both editions have the same desktop code; the personal launcher injects its existing personal defaults.
 
-The GUI uses Python's built-in Tk toolkit. Install this repository's requirements and put FFmpeg and ffprobe on PATH as usual. No web server, browser UI, extra Python GUI package or service account is needed. If your Python installation omits Tk, install its Tk component (commonly `python3-tk` on Linux). Launch from a terminal if a double-click doesn't open a window so dependency errors are visible.
+The GUI uses Python's built-in Tk toolkit with the [Sun Valley ttk theme](https://github.com/rdbende/Sun-Valley-ttk-theme). Install this repository's updated requirements (`python -m pip install -r requirements.txt`) and put FFmpeg and ffprobe on PATH as usual. No web server, browser UI or service account is needed. If your Python installation omits Tk, install its Tk component (commonly `python3-tk` on Linux). Launch from a terminal if a double-click doesn't open a window so dependency errors are visible.
+
+## Modern desktop design
+
+The interface uses dark surfaces, rounded panels and controls, a compact header, an orange Download action and a clearer session area. All existing Download, Sign in and Options controls remain available, with the same saved preferences, commands and download behavior. Forms scroll with the mouse wheel, and keyboard focus brings off-screen fields into view. Native window controls and file dialogs remain available; supported Windows versions also use a dark title bar.
+
+`sv-ttk` is a small presentation dependency installed by requirements.txt. If it is absent, the app uses a styled built-in ttk fallback; the CLI and worker do not import the theme. `downloader_ui.py` holds the palette, themed controls and panel/scroll helpers separately from the downloader engine. This visual refresh needs no history or preference migration.
 
 ## Everyday workflow
 

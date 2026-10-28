@@ -8,7 +8,7 @@ Download SoundCloud likes, playlists or individual tracks, with direct YouTube U
 
 Run `python soundcloud_gui.pyw` (or `python soundcloud_downloader.py --gui`). On Windows you can also double-click `soundcloud_gui.pyw` using the Python installation where you installed the requirements.
 
-The desktop app provides download/count/audio controls, browser or cookie-file authentication, source-quality inspection, a bounded 25-entry preview, live progress, completed tracks, a log and safe cancellation. It remembers local preferences and uses the same CLI engine and original two history files. No extra Python GUI dependency is needed; Tk must be available in your Python installation. GUI paths resolve from this checkout. See the [desktop guide](DESKTOP_GUI.md) for workflow, local settings and stop/resume behavior.
+The desktop app provides download/count/audio controls, browser or cookie-file authentication, source-quality inspection, a bounded 25-entry preview, live progress, completed tracks, a log and safe cancellation. Its modern dark interface uses rounded panels, themed controls and an orange Download action. It remembers local preferences and uses the same CLI engine and original two history files. Install the updated requirements for the Sun Valley theme; Tk must also be available in your Python installation. GUI paths resolve from this checkout. See the [desktop guide](DESKTOP_GUI.md) for workflow, local settings and stop/resume behavior.
 
 ## Setup
 
@@ -189,6 +189,6 @@ python -m unittest discover -s tests -v
 
 Tests use synthetic formats/accounts and local fixtures; they never read real browser cookies or contact SoundCloud. One test converts locally generated audio through real FFmpeg over a loopback HTTP server, when FFmpeg/ffprobe are installed. CI runs the suite with both Python 3.10 and 3.13. Live authentication/format availability must be checked separately with a metadata command.
 
-Desktop tests also exercise settings, command validation, the real worker process, bounded preview, safe cancellation and the Tk form. Linux CI uses Xvfb for the form test. `downloader_gui.py` owns the window; `downloader_desktop.py` owns settings and the isolated CLI worker. These shared modules and tests are kept identical in both editions.
+Desktop tests also exercise settings, command validation, the real worker process, bounded preview, safe cancellation and the Tk form, including layout, keyboard scrolling and theme fallback. Linux CI uses Xvfb for the form test. `downloader_gui.py` owns the window; `downloader_ui.py` owns presentation helpers; `downloader_desktop.py` owns settings and the isolated CLI worker. These shared modules and tests are kept identical in both editions.
 
 Only download content you have permission to save. No project license file is currently included.

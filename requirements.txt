@@ -1,1 +1,2 @@
 yt-dlp[curl-cffi]>=2026.3.17
+sv-ttk>=2.6,<3
