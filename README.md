@@ -4,6 +4,12 @@ Download SoundCloud likes, playlists or individual tracks, with direct YouTube U
 
 **Public defaults:** output `downloads` relative to the terminal; best available source, converted to MP3 V0; no account/cookie/profile preset. Use `--require-hq` to enforce SoundCloud HQ/original, or `--keep-original` to retain source audio.
 
+## Desktop app
+
+Run `python soundcloud_gui.pyw` (or `python soundcloud_downloader.py --gui`). On Windows you can also double-click `soundcloud_gui.pyw` using the Python installation where you installed the requirements.
+
+The desktop app provides download/count/audio controls, browser or cookie-file authentication, source-quality inspection, a bounded 25-entry preview, live progress, completed tracks, a log and safe cancellation. It remembers local preferences and uses the same CLI engine and original two history files. No extra Python GUI dependency is needed; Tk must be available in your Python installation. GUI paths resolve from this checkout. See the [desktop guide](DESKTOP_GUI.md) for workflow, local settings and stop/resume behavior.
+
 ## Setup
 
 Requires Python 3.10+ and the **FFmpeg and ffprobe executables** on PATH for downloads. Metadata-only inspection needs neither executable. The Python package named `ffmpeg` does not install them; get FFmpeg from [ffmpeg.org](https://ffmpeg.org/download.html).
@@ -123,6 +129,7 @@ For subsequent downloads, keep using `--cookies FILE` alone, or add `--refresh-b
 | `-F`, `--list-formats` | List sources for one track; no count/`--all`; ignores history, duration and HQ policy |
 | `--check-quality [URL]` | Same source listing plus SoundCloud HQ/account report; default is Monster Mashup |
 | `--dry-run` | Collection preview; normal quality/duration/history policies apply, completed-count limit does not |
+| `--preview-limit N` | With `--dry-run`, inspect at most N collection entries, including history skips |
 | `--original`, `--keep-original` | Keep source extension/audio; still add metadata/artwork where supported |
 | `--require-hq` | SoundCloud creator original or full-length audio reporting >=256 kbps |
 | `--allow-standard-quality` | SoundCloud best available source, allowing below 256 kbps |
@@ -181,5 +188,7 @@ python -m unittest discover -s tests -v
 ```
 
 Tests use synthetic formats/accounts and local fixtures; they never read real browser cookies or contact SoundCloud. One test converts locally generated audio through real FFmpeg over a loopback HTTP server, when FFmpeg/ffprobe are installed. CI runs the suite with both Python 3.10 and 3.13. Live authentication/format availability must be checked separately with a metadata command.
+
+Desktop tests also exercise settings, command validation, the real worker process, bounded preview, safe cancellation and the Tk form. Linux CI uses Xvfb for the form test. `downloader_gui.py` owns the window; `downloader_desktop.py` owns settings and the isolated CLI worker. These shared modules and tests are kept identical in both editions.
 
 Only download content you have permission to save. No project license file is currently included.

@@ -11,6 +11,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg xvfb
       - run: python -m pip install -r requirements.txt
-      - run: python -m unittest discover -s tests -v
+      - run: xvfb-run -a python -m unittest discover -s tests -v
