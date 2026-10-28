@@ -68,7 +68,7 @@ A bare URL defaults to **one new completed download**. Use `--all` deliberately 
 
 ## Cookies and automatic refresh
 
-The simplest setup is **`--browser firefox`** (or another supported browser) where the intended account is already signed in. The script reads that browser's current cookies each run, so you do not have to keep exporting a cookie file. Select the intended account with `--profile`; the SoundCloud account and subscription product are printed before extraction. `--browser` overrides the personal edition's default cookie file.
+The simplest setup is **`--browser firefox`** (or another supported browser) where the intended account is already signed in. The script reads that browser's current cookies each run, so you do not have to keep exporting a cookie file. Select the intended account with `--profile`; the selected SoundCloud account is printed before downloading, and `--check-quality` also reports the subscription product. `--browser` overrides the personal edition's default cookie file.
 
 If you prefer a cookie file, use **`--cookies FILE --refresh-browser firefox`**. Missing files/tokens and an explicit rejection from SoundCloud's account endpoint trigger one retry with newly read browser cookies. `--refresh-profile` selects the fallback profile; it can belong to a different account, so check the account printed after fallback. Direct `--browser` mode also re-reads the browser once if its SoundCloud login is rejected.
 
@@ -79,6 +79,30 @@ During downloads, an HTTP 401/403 or authentication error prompts another accoun
 A missing HQ format, DRM restriction, unavailable track, timeout or HTTP 429 is not proof of expired login. Rate limits use bounded yt-dlp retries/backoff; wait before rerunning if they persist. Locked browser profiles and unsupported cookie decryption fail with an error: close the browser if necessary, try the correct profile, or supply a Netscape-format cookie file. See [yt-dlp's authentication options](https://github.com/yt-dlp/yt-dlp#authentication-options) and [SoundCloud extractor](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/soundcloud.py). The extractor refreshes its API client ID separately; that client ID is not your account token.
 
 The requirements include the `curl-cffi` extra for browser-request impersonation used by SoundCloud playlist requests. If an older installation warns that no impersonation target is available, reinstall this repo's requirements with the same Python executable you use to run the script. This dependency helps browser/TLS compatibility; it does not renew account tokens, supply missing HQ audio, or change your location.
+
+### Cookie-file walkthrough
+
+**Already have an exported file?** Both editions accept it directly. It must be a Mozilla/Netscape-format cookie file, not a raw token, JSON export, or copied HTTP Cookie header. Use an existing private folder in place of `D:\Private` below.
+
+```powershell
+# File-only authentication: no browser or fallback option required
+python soundcloud_downloader.py "https://soundcloud.com/USER/likes" 10 --cookies "D:\Private\soundcloud-cookies.txt"
+
+# Check the selected account and source formats before downloading audio
+python soundcloud_downloader.py --check-quality --cookies "D:\Private\soundcloud-cookies.txt"
+```
+
+**Need to create the file?** Sign into the intended SoundCloud account in Firefox (or another supported browser), then run the following with the same Python installation/environment used for the downloader. Replace the example URL with an accessible single SoundCloud track. This reads metadata and exports cookies; it does not download audio.
+
+```powershell
+python -m yt_dlp --ignore-config --cookies-from-browser firefox --cookies "D:\Private\soundcloud-cookies.txt" --skip-download --no-playlist "https://soundcloud.com/ARTIST/TRACK"
+```
+
+This export command runs **yt-dlp directly**, which allows `--cookies-from-browser` together with `--cookies` to write a file. Our downloader instead accepts either `--browser` or `--cookies`; add `--refresh-browser` when you want a cookie-file login to fall back to a browser. To export a specific profile, replace `firefox` in the export command with `"firefox:PROFILE_PATH"`. To read a profile directly in our downloader, use `--browser firefox --profile "PROFILE_PATH"`.
+
+The export contains cookies for **all sites in that browser profile**, even when a SoundCloud URL is supplied. Keep it private and outside Git. Existing cookie files are read through a temporary copy by our downloader; they are not overwritten. See [yt-dlp's cookie-file guide](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp) for the file format and export behavior.
+
+For subsequent downloads, keep using `--cookies FILE` alone, or add `--refresh-browser firefox` and optionally `--refresh-profile "PROFILE_PATH"`. A rejected browser login still needs you to sign in again. Relative cookie/output paths are resolved from the terminal's current folder, so use an absolute path when launching the script from elsewhere.
 
 ## Options at a glance
 
