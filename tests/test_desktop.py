@@ -272,6 +272,56 @@ class GuiTests(unittest.TestCase):
             self.assertFalse(app.busy)
             self.assertTrue(app.target_entry.instate(["!disabled"]))
 
+            # The visual refresh must keep actions accessible in the minimum
+            # window size, with a genuinely thin progress indicator.
+            # Map off screen so Tk allocates the real canvas viewport; a
+            # withdrawn root reports a one-pixel viewport on some platforms.
+            self.root.geometry("1000x720+10000+10000")
+            self.root.deiconify()
+            self.root.update()
+            self.assertLessEqual(app.progress.winfo_reqheight(), 8)
+            self.assertLessEqual(app.download_button.winfo_reqheight(), 55)
+            for widget in (app.download_button, app.preview_button, app.quality_button, app.stop_button):
+                bottom = widget.winfo_rooty() - self.root.winfo_rooty() + widget.winfo_height()
+                self.assertLessEqual(bottom, self.root.winfo_height())
+
+            # A keyboard-focused setting scrolls into view without changing
+            # preferences. No real keyboard or user-window interaction needed.
+            app.settings_tabs.select(2)
+            self.root.update()
+            canvas, content = app.form_canvases[2]
+            before = app.settings()
+            canvas.yview_moveto(1)
+            duration = next(widget for widget in content.winfo_children()
+                            if "textvariable" in widget.keys()
+                            if str(widget.cget("textvariable")) == str(app.values["max_duration"]))
+            duration.event_generate("<FocusIn>")
+            self.root.update_idletasks()
+            top = duration.winfo_rooty() - content.winfo_rooty()
+            self.assertGreaterEqual(top, canvas.canvasy(0)-1)
+            self.assertLessEqual(top + duration.winfo_height(), canvas.canvasy(canvas.winfo_height())+1)
+            self.assertEqual(before, app.settings())
+            self.root.withdraw()
+
+    def test_missing_theme_keeps_the_desktop_usable(self):
+        import tkinter as tk
+        from tkinter import ttk
+        from downloader_ui import configure_theme
+        root = tk.Tk()
+        root.withdraw()
+        try:
+            with patch.dict(sys.modules, {"sv_ttk": None}):
+                configure_theme(root)
+            invoked = []
+            button = ttk.Button(root, text="Download", style="Studio.TButton", command=lambda: invoked.append(True))
+            button.invoke()
+            self.assertEqual(invoked, [True])
+            button.state(["disabled"])
+            button.invoke()
+            self.assertEqual(invoked, [True])
+        finally:
+            root.destroy()
+
 
 if __name__ == "__main__":
     unittest.main()
