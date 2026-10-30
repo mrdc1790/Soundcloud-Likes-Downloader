@@ -204,6 +204,9 @@ def build_options(args, completed, cancelled, previous=None):
     }
     if is_soundcloud(args.target):
         options.update(soundcloud_options(allow_standard_quality=args.inspect or not args.require_hq))
+    else:
+        # yt-dlp only enables Deno by default; also allow an installed Node.
+        options["js_runtimes"] = {"deno": {}, "node": {}}
     if args.inspect:
         options.update({"listformats": True, "simulate": "list_only", "noplaylist": True,
                         "playlistend": 1, "extract_flat": "in_playlist"})

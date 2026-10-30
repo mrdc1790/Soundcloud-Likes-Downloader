@@ -27,6 +27,8 @@ python soundcloud_downloader.py --help
 
 On macOS/Linux activate with `source .venv/bin/activate`. If PowerShell blocks activation, use `.\.venv\Scripts\python.exe` instead of `python`.
 
+For YouTube, install [Node.js](https://nodejs.org/en/download/) 22+ or [Deno](https://deno.com/) 2.3+ on PATH. The CLI and desktop app enable both runtimes, and yt-dlp prefers Deno when both are available. The requirements include yt-dlp's `default` extra to install its matching EJS challenge scripts. An existing supported Node installation needs no extra flags. See [yt-dlp's JavaScript setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
+
 ## Everyday commands
 
 Normal runs are compact: account (when signed in), a start message, one line per completed track with its actual source format/bitrate, and the final summary. Already-downloaded tracks, extraction messages and progress chatter stay hidden. Warnings/errors remain visible. Region/DRM failures show the track title and link when available from the playlist; the same details are saved to `download_log_ERROR.txt`. A playlist/page failure is not attributed to the previous track. Add `--verbose` (or `-v`) for detailed diagnostics, skipped entries, progress and source reports.
@@ -179,7 +181,7 @@ Afterward, local tracks can sit alongside Spotify-catalog tracks in the same pla
 
 ## Troubleshooting and development
 
-If extraction changes, update the same Python environment with `python -m pip install --upgrade yt-dlp`. For a login failure, verify the printed account and selected browser profile. Format listing can show that a track simply has no HQ source. Neither a different track's HQ availability nor cookie-file age proves this track's quality.
+If extraction changes, update the same Python environment with `python -m pip install --upgrade -r requirements.txt` to keep yt-dlp and its EJS scripts compatible. For a login failure, verify the printed account and selected browser profile. Format listing can show that a track simply has no HQ source. Neither a different track's HQ availability nor cookie-file age proves this track's quality.
 
 SoundCloud account checks use private yt-dlp helpers isolated in `soundcloud_quality.py`; an upstream change may require an integration update. `downloader_cli.py` holds per-run state, option validation, bounded retry/backoff, completed-download counting, and dependency checks. The thin entry script contains edition defaults and quick examples. The shared modules are intentionally identical in both repos; port fixes to both without copying personal defaults into the public entry point.
 
