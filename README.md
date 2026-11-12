@@ -1,6 +1,6 @@
 # SoundCloud Likes Downloader
 
-Download SoundCloud likes, playlists or individual tracks, with direct YouTube URL support. This portable edition and the personal edition use the same CLI engine and tests, with independent local copies so either repository works on its own.
+Download SoundCloud likes, playlists, or individual tracks, and extract audio from YouTube videos, Facebook videos, and Facebook Reels. This portable edition and the personal edition use the same CLI engine and tests, with independent local copies so either repository works on its own.
 
 **Public defaults:** output `downloads` relative to the terminal; best available source, converted to MP3 V0; no account/cookie/profile preset. Use `--require-hq` to enforce SoundCloud HQ/original, or `--keep-original` to retain source audio.
 
@@ -149,6 +149,8 @@ Browsers: Firefox, Chrome, Chromium, Edge, Opera, Brave, Vivaldi, Safari and Wha
 [SoundCloud HQ is normally 256 kbps AAC](https://help.soundcloud.com/hc/en-us/articles/360051838074-High-Quality-Streaming). MP3 output is **V0 (variable bitrate)**, not a guaranteed 256/320 kbps file. Conversion cannot restore quality absent from the source. `--keep-original` avoids lossy conversion, but artwork/metadata support depends on the container. A creator-enabled original may have no reported bitrate and is not proof of a particular source quality. Available formats and the source actually chosen are reported separately from final completion.
 
 A completed-track line now identifies its **source before conversion**, for example `[source: hls_aac_256k, 256 kbps]` or `[source: creator original FLAC, bitrate unreported]`. Creator originals remain an exception to the numeric HQ cutoff: an original can have an unknown or lower bitrate. MP3 V0 is still the output format unless `--keep-original` is selected. Older completion lines without a source label do not establish which source was downloaded.
+
+For Facebook videos and Reels, use `-F` to see the available streams. Use `--keep-original` to retain the selected source audio, such as AAC in an `.m4a` file, without re-encoding it.
 
 ## Download history: the same two caches
 

@@ -44,6 +44,18 @@ class DownloaderTests(unittest.TestCase):
             cli = app.parser()
             self.assertEqual(app.resolve(cli, cli.parse_args(['10'])).limit, 10)
 
+    def test_facebook_urls_do_not_require_default_soundcloud_cookies(self):
+        cli = app.parser(app.Defaults(cookies="missing-soundcloud-cookies.txt"))
+        for url in (
+            "https://www.facebook.com/example/videos/12345/",
+            "https://www.facebook.com/example/posts/12345/",
+            "https://www.facebook.com/reel/12345",
+        ):
+            with self.subTest(url=url):
+                args = app.resolve(cli, cli.parse_args(["--nocache", url]))
+                self.assertEqual(args.target, url)
+                self.assertIsNone(args.cookies)
+
     def test_success_failure_and_simulation_completion(self):
         # Exercise the real yt-dlp processing pipeline without network or FFmpeg.
         for successful, simulated, expected in [(True, False, 1), (False, False, 0), (True, True, 0)]:

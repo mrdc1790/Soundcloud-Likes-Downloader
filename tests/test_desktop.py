@@ -113,11 +113,13 @@ class DesktopTests(unittest.TestCase):
             self.assertFalse(any(event["type"] == "completed" for event in events))
             self.assertEqual(before, {path.name: path.read_bytes() for path in output.iterdir()})
 
-    def test_youtube_quality_button_uses_format_listing(self):
+    def test_youtube_and_facebook_quality_button_uses_format_listing(self):
         with tempfile.TemporaryDirectory() as directory:
-            command = build_command(Settings(target="https://youtu.be/example", output=directory), "quality", directory)
-            self.assertIn("--list-formats", command)
-            self.assertNotIn("--check-quality", command)
+            for url in ("https://youtu.be/example", "https://www.facebook.com/reel/12345"):
+                with self.subTest(url=url):
+                    command = build_command(Settings(target=url, output=directory), "quality", directory)
+                    self.assertIn("--list-formats", command)
+                    self.assertNotIn("--check-quality", command)
 
     def test_completion_events_and_cancel_preserve_both_caches(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -205,7 +207,7 @@ with patch.object(yt_dlp.YoutubeDL, "download", download):
                 if event["type"] == "exit":
                     break
             self.assertEqual(events[-1], {"type": "exit", "code": 2})
-            self.assertTrue(any("SoundCloud/YouTube URL" in event.get("message", "") for event in events))
+            self.assertTrue(any("SoundCloud, YouTube, or Facebook URL" in event.get("message", "") for event in events))
             self.assertEqual(list(Path(directory).iterdir()), [])
 
 

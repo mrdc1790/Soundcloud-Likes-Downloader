@@ -12,13 +12,13 @@ The interface uses dark surfaces, rounded panels and controls, a compact header,
 
 ## Everyday workflow
 
-1. Paste a SoundCloud track, likes or playlist URL. Direct YouTube URLs also work. **My likes** recalls the edition's likes URL, the initial `SOUNDCLOUD_LIKES_URL`, or the URL you enter the first time. Paste a different likes URL directly whenever needed.
+1. Paste a SoundCloud track, likes or playlist URL. YouTube URLs and Facebook video or Reel URLs also work. **My likes** recalls the edition's likes URL, the initial `SOUNDCLOUD_LIKES_URL`, or the URL you enter the first time. Paste a different likes URL directly whenever needed.
 2. Choose the existing music folder to keep using its two history files. Public defaults point to `downloads` beside the source. Personal defaults use the existing configured library and cookie file, with HQ required.
 3. On **Sign in**, choose Guest, Cookie file or Browser. Browser reads the currently signed-in profile. Cookie-file mode optionally falls back to the selected browser and profile after a confirmed missing/rejected login. The selected account appears in Activity log; the GUI does not sign into an account for you.
 4. Set the number of **new completed downloads**, or explicitly choose **Entire collection**. Existing history, failures and duration skips don't consume this count. Choose original source audio to avoid conversion, or use the normal MP3 V0 output. HQ/original policy is separate from the output format.
 5. **Download** starts the job. Tracks shows live state, completed tracks and source quality. **Activity log** contains the compact CLI output and any warning/error details. **Open folder** opens the selected library. Ctrl+Enter also starts a download.
 
-**Check quality** requires a single track URL. It inspects SoundCloud account/source availability and lists all formats, including sources below the selected HQ policy. For YouTube it lists available formats. It does not require FFmpeg or write audio/history. A successful report does not mean an HQ source exists; the report distinguishes source availability from MP3 output. Go+ authentication cannot make an absent source appear.
+**Check quality** requires a single track URL. It inspects SoundCloud account/source availability and lists all formats, including sources below the selected HQ policy. For YouTube and Facebook it lists available formats. It does not require FFmpeg or write audio/history. A successful report does not mean an HQ source exists; the report distinguishes source availability from MP3 output. Go+ authentication cannot make an absent source appear.
 
 **Preview 25 entries** inspects at most the first 25 collection entries, including skipped/archived entries. It honors normal history, duration and quality policy. It writes neither audio nor history, but still contacts the service. The terminal equivalent is `URL --dry-run --preview-limit 25`; an ordinary CLI `--dry-run` remains unbounded unless this option is supplied. This is a metadata preview, not a guarantee that a later download will succeed.
 

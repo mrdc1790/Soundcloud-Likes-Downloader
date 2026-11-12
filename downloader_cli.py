@@ -47,7 +47,7 @@ likes/count shortcuts use SOUNDCLOUD_LIKES_URL (or the personal edition's defaul
 """)
     cli.epilog = cli.epilog.replace("script.py", cli.prog)
     cli.set_defaults(edition_defaults=defaults)
-    cli.add_argument("target", nargs="?", help="URL, like count, or the likes/url subcommand")
+    cli.add_argument("target", nargs="?", help="SoundCloud, YouTube, or Facebook URL, like count, or the likes/url subcommand")
     cli.add_argument("count", nargs="?", help="count after URL/likes, or URL after the url subcommand")
     limit = cli.add_mutually_exclusive_group()
     limit.add_argument("--limit", type=positive_int, help="new completed downloads (alternative to positional count)")
@@ -115,9 +115,9 @@ def resolve(cli, args):
     host = (parsed.hostname or "").lower()
     if parsed.scheme not in {"http", "https"} or not any(
         host == domain or host.endswith("." + domain)
-        for domain in ("soundcloud.com", "youtube.com", "youtu.be")
+        for domain in ("soundcloud.com", "youtube.com", "youtu.be", "facebook.com")
     ):
-        cli.error("provide a SoundCloud/YouTube URL; likes/count shortcuts require SOUNDCLOUD_LIKES_URL")
+        cli.error("provide a SoundCloud, YouTube, or Facebook URL. Likes/count shortcuts require SOUNDCLOUD_LIKES_URL.")
     if args.profile and not args.browser:
         cli.error("--profile requires --browser")
     if args.refresh_profile and not args.refresh_browser:
