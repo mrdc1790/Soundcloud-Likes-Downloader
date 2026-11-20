@@ -417,6 +417,13 @@ class WorkflowTests(unittest.TestCase):
                 app.main(argv)
             self.assertEqual(error.exception.code, 2)
 
+    def test_malformed_url_is_reported_as_an_argument_error(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as error:
+            app.main(["https://[", "--no-auth"])
+        self.assertEqual(error.exception.code, 2)
+        self.assertIn("provide a valid SoundCloud, YouTube, or Facebook URL", stderr.getvalue())
+
     def test_missing_ffmpeg_fails_before_library_creation(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(app.shutil, "which", return_value=None):
             output = Path(directory) / "absent"

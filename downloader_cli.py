@@ -111,8 +111,11 @@ def resolve(cli, args):
         count = parse_count(args.count)
     if args.check_quality and args.target is None:
         args.target = "https://soundcloud.com/secretformulawav/monstermash-mashup"
-    parsed = urlparse(args.target or "")
-    host = (parsed.hostname or "").lower()
+    try:
+        parsed = urlparse(args.target or "")
+        host = (parsed.hostname or "").lower()
+    except ValueError:
+        cli.error("provide a valid SoundCloud, YouTube, or Facebook URL.")
     if parsed.scheme not in {"http", "https"} or not any(
         host == domain or host.endswith("." + domain)
         for domain in ("soundcloud.com", "youtube.com", "youtu.be", "facebook.com")
