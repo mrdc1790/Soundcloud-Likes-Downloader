@@ -1,6 +1,8 @@
 # SoundCloud Likes Downloader
 
-Download SoundCloud likes, playlists, or individual tracks, and extract audio from YouTube videos, Facebook videos, and Facebook Reels. This portable edition and the personal edition use the same CLI engine and tests, with independent local copies so either repository works on its own.
+Save audio from SoundCloud likes, playlists, or individual tracks you have permission to download. The Python CLI and desktop app also support extracting audio from YouTube and Facebook video links.
+
+The desktop app and CLI share the same download engine, quality rules, and duplicate history. You can inspect source quality before downloading, keep the original audio or convert it with FFmpeg, and stop a desktop batch while retaining completed downloads. [Desktop workflow](DESKTOP_GUI.md) · [CLI workflow tests](tests/test_cli_workflows.py)
 
 **Public defaults:** output `downloads` relative to the terminal; best available source, converted to MP3 V0; no account/cookie/profile preset. Use `--require-hq` to enforce SoundCloud HQ/original, or `--keep-original` to retain source audio.
 
